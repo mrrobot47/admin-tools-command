@@ -40,7 +40,7 @@ Suite for `ee admin-tools` (package `easyengine/admin-tools-command`, based on `
 | compose `config_files` label includes the admin file | same outline |
 | disable drops the mounts from nginx and php | disable: "Disable admin-tools after enabling them" |
 | `init_global_admin_tools_auth()` reuses existing admin-tools auth | enable: "Enable admin-tools on a php site"; auth: "Enabling keeps an existing admin-tools auth" (needs a `default_admin_tools` auth, asserted as a precondition) |
-| `init_global_admin_tools_auth()` creates auth `easyengine`, htpasswd file and whitelist `10.1.0.0/16` | auth: "Enabling creates the admin-tools auth and whitelist when none exist", "Re-enabling with --force restores the missing admin-tools auth" |
+| `init_global_admin_tools_auth()` creates auth `easyengine`, htpasswd file and whitelist (the frontend subnet, `10.1.0.0/16` unless the host routes it) | auth: "Enabling creates the admin-tools auth and whitelist when none exist", "Re-enabling with --force restores the missing admin-tools auth" |
 | global `default` auth used instead of admin-tools auth | auth: "A global auth protects /ee-admin/ when there is no admin-tools auth" |
 | `ee auth create global` interplay | auth: "Creating a global auth keeps the admin-tools auth" (`@known-bug` AUTH-8) |
 | init runs before site validation | auth: "A failed enable on an unknown site leaves the global auth untouched" (`@known-bug` ATC-3) |

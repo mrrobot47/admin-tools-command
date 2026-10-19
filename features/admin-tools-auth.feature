@@ -17,9 +17,9 @@ Feature: admin-tools with and without the global default_admin_tools auth
       """
       And the http auth for 'default_admin_tools' should have the user 'easyengine' in the database
       And the http auth for 'default' should not exist in the database
-      And the whitelist for 'default' should contain '10.1.0.0/16' in the database
+      And the whitelist for 'default' should contain '{frontend_subnet}' in the database
       And the file '/opt/easyengine/services/nginx-proxy/htpasswd/default_admin_tools' should contain 'easyengine:'
-      And the file '/opt/easyengine/services/nginx-proxy/vhost.d/default_acl' should contain 'allow 10.1.0.0/16;'
+      And the file '/opt/easyengine/services/nginx-proxy/vhost.d/default_acl' should contain 'allow {frontend_subnet};'
     Given I send requests via the public IP
     When I request 'http://bh-admin-tools-command-14.test/ee-admin/phpinfo.php' until it returns 401 within 60 seconds
     Then the response header 'WWW-Authenticate' should contain 'Admin Tools'
@@ -46,11 +46,7 @@ Feature: admin-tools with and without the global default_admin_tools auth
       """
     When I run 'bin/ee auth list global --format=json'
     Then the last command should succeed
-      And STDOUT of the last command should be valid json
-      And STDOUT of the last command should contain:
-      """
-      "site_url":"Admin Tools Auth"
-      """
+      And STDOUT of the last command should be a JSON list with an entry where 'site_url' is 'Admin Tools Auth'
 
   Scenario: A global auth protects /ee-admin/ when there is no admin-tools auth
     Given admin-tools are disabled on 'bh-admin-tools-command-14.test'

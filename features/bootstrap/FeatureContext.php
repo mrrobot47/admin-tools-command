@@ -467,6 +467,21 @@ class FeatureContext implements Context
 		return $ip;
 	}
 
+	/**
+	 * Replaces `{frontend_subnet}` with the global frontend network's subnet (the default whitelist); it is 10.1.0.0/16 unless the host already routes that range.
+	 */
+	private static function expand( $text ) {
+		if ( false === strpos( $text, '{frontend_subnet}' ) ) {
+			return $text;
+		}
+		$rows = self::db_rows( "SELECT value FROM options WHERE key = 'frontend_subnet_ip'" );
+		if ( empty( $rows ) ) {
+			throw new Exception( 'Option frontend_subnet_ip is not set.' );
+		}
+
+		return str_replace( '{frontend_subnet}', $rows[0]['value'], $text );
+	}
+
 	private function last_command() {
 		if ( empty( $this->commands ) ) {
 			throw new Exception( 'No command has been run in this scenario.' );
@@ -621,6 +636,22 @@ class FeatureContext implements Context
 	}
 
 	/**
+	 * @Then STDOUT of the last command should be a JSON list with an entry where :key is :value
+	 */
+	public function stdoutShouldBeAJsonListWithAnEntry( $key, $value ) {
+		$run  = $this->last_command();
+		$list = json_decode( $run->stdout, true );
+		if ( is_array( $list ) ) {
+			foreach ( $list as $entry ) {
+				if ( is_array( $entry ) && isset( $entry[ $key ] ) && (string) $entry[ $key ] === $value ) {
+					return;
+				}
+			}
+		}
+		throw new Exception( "No JSON entry with $key = $value.\n" . self::describe( $run ) );
+	}
+
+	/**
 	 * Creates the site only when it does not exist yet, so scenarios can share it within a feature.
 	 *
 	 * @Given the site :site exists, created with :flags
@@ -749,6 +780,7 @@ class FeatureContext implements Context
 	 * @Then the whitelist for :scope should contain :ip in the database
 	 */
 	public function theWhitelistForShouldContain( $scope, $ip ) {
+		$ip = self::expand( $ip );
 		if ( empty( self::db_rows( 'SELECT id FROM auth_ips WHERE site_url = ? AND ip = ?', [ $scope, $ip ] ) ) ) {
 			$all = self::db_rows( 'SELECT site_url, ip FROM auth_ips' );
 			throw new Exception( "IP $ip is not whitelisted for $scope. Rows: " . json_encode( $all ) );
@@ -786,6 +818,7 @@ class FeatureContext implements Context
 	 * @Then the file :path should contain :text
 	 */
 	public function theFileShouldContain( $path, $text ) {
+		$text = self::expand( $text );
 		$this->theFileShouldExist( $path );
 		$content = file_get_contents( $path );
 		if ( false === strpos( $content, $text ) ) {
@@ -797,6 +830,7 @@ class FeatureContext implements Context
 	 * @Then the file :path should not contain :text
 	 */
 	public function theFileShouldNotContain( $path, $text ) {
+		$text = self::expand( $text );
 		$this->theFileShouldExist( $path );
 		if ( false !== strpos( file_get_contents( $path ), $text ) ) {
 			throw new Exception( "File $path unexpectedly contains: $text" );
@@ -881,7 +915,7 @@ class FeatureContext implements Context
 	}
 
 	/**
-	 * Requests from 127.0.0.1 reach the proxy as 10.1.0.1, which the global whitelist lets through.
+	 * Requests from 127.0.0.1 reach the proxy from the frontend network's gateway, which the global whitelist lets through.
 	 *
 	 * @Given I send requests via 127.0.0.1
 	 */

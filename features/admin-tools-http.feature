@@ -1,5 +1,5 @@
 Feature: admin-tools over HTTP
-  Every tool under /ee-admin/ is served by the site's nginx/php and protected by the global admin-tools auth (htpasswd/default_admin_tools) in nginx-proxy. Requests go to the host's public IP so the whitelist (10.1.0.0/16) does not apply; 127.0.0.1 arrives as 10.1.0.1 and bypasses auth.
+  Every tool under /ee-admin/ is served by the site's nginx/php and protected by the global admin-tools auth (htpasswd/default_admin_tools) in nginx-proxy. Requests go to the host's public IP so the global whitelist (the frontend network's subnet, usually 10.1.0.0/16) does not apply; 127.0.0.1 arrives from the network's gateway and bypasses auth.
 
   Scenario: /ee-admin/ is protected even before admin-tools are enabled
     Given the site 'bh-admin-tools-command-9.test' exists, created with '--type=php'
@@ -150,6 +150,9 @@ Feature: admin-tools over HTTP
     When I request 'http://bh-admin-tools-command-12.test/ee-admin/phpinfo.php' until it returns 200 within 60 seconds
     When I run 'bin/ee auth create bh-admin-tools-command-12.test --user=bh-site-user --pass=bh-site-pass'
     Then the last command should succeed
+    # The proxy reload is asynchronous; old workers can still answer for a moment.
+    Given I use no basic auth
+    When I request 'http://bh-admin-tools-command-12.test/' until it returns 401 within 60 seconds
     Given I use basic auth with user 'bh-site-user' and password 'bh-site-pass'
     When I request 'http://bh-admin-tools-command-12.test/'
     Then the response code should not be 401
