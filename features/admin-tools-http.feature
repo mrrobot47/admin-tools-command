@@ -206,10 +206,12 @@ Feature: admin-tools over HTTP
     When I run 'bin/ee mailhog enable bh-admin-tools-command-20.test --force'
     Then the last command should succeed
       And the site 'bh-admin-tools-command-20.test' should have 'mailhog_enabled' set to '1' in the database
+      And the file '/opt/easyengine/sites/bh-admin-tools-command-20.test/config/admin-tools/site.json' should contain '"mailhog":true'
     When I request 'http://bh-admin-tools-command-20.test/ee-admin/' until it returns 200 within 60 seconds
     Then the response body should contain '<a href="mailhog">mailhog</a>'
     When I run 'bin/ee mailhog disable bh-admin-tools-command-20.test'
     Then the last command should succeed
+      And the file '/opt/easyengine/sites/bh-admin-tools-command-20.test/config/admin-tools/site.json' should contain '"mailhog":false'
     When I request 'http://bh-admin-tools-command-20.test/ee-admin/'
     Then the response code should be 200
       And the response body should not contain '<a href="mailhog">'

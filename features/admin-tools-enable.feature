@@ -21,23 +21,47 @@ Feature: Enable admin-tools on a site
     Given the site 'bh-admin-tools-command-4.test' exists, created with '--type=php'
       And admin-tools are enabled on 'bh-admin-tools-command-4.test'
     Then the file '/opt/easyengine/sites/bh-admin-tools-command-4.test/docker-compose-admin.yml' should contain '"/opt/easyengine/admin-tools:/var/www/htdocs/ee-admin:ro"'
-      And the file '/opt/easyengine/sites/bh-admin-tools-command-4.test/docker-compose-admin.yml' should contain '"/opt/easyengine/db/ee.sqlite:/opt/easyengine/db/ee.sqlite:ro"'
+      And the file '/opt/easyengine/sites/bh-admin-tools-command-4.test/docker-compose-admin.yml' should contain '"/opt/easyengine/sites/bh-admin-tools-command-4.test/config/admin-tools:/etc/easyengine/admin-tools:ro"'
+      And the file '/opt/easyengine/sites/bh-admin-tools-command-4.test/docker-compose-admin.yml' should not contain 'ee.sqlite'
       And the file '/opt/easyengine/sites/bh-admin-tools-command-4.test/docker-compose-admin.yml' should contain 'REDIS_HOST='
       And the file '/opt/easyengine/sites/bh-admin-tools-command-4.test/docker-compose-admin.yml' should contain 'DB_HOST='
 
-  Scenario Outline: Enabling mounts the tools and the EE database read-only into nginx and php
+  Scenario Outline: Enabling mounts the tools read-only into nginx and php, and never the EE database
     Given the site 'bh-admin-tools-command-4.test' exists, created with '--type=php'
       And admin-tools are enabled on 'bh-admin-tools-command-4.test'
     Then the '<service>' container of site 'bh-admin-tools-command-4.test' should be running
       And the '<service>' container of site 'bh-admin-tools-command-4.test' should have a mount from '/opt/easyengine/admin-tools' at '/var/www/htdocs/ee-admin'
       And the '<service>' container of site 'bh-admin-tools-command-4.test' should have a read-only mount at '/var/www/htdocs/ee-admin'
-      And the '<service>' container of site 'bh-admin-tools-command-4.test' should have a read-only mount at '/opt/easyengine/db/ee.sqlite'
+      And the '<service>' container of site 'bh-admin-tools-command-4.test' should not have a mount at '/opt/easyengine/db/ee.sqlite'
       And the '<service>' container of site 'bh-admin-tools-command-4.test' should have the label 'com.docker.compose.project.config_files' containing 'docker-compose-admin.yml'
 
     Examples:
       | service |
       | nginx   |
       | php     |
+
+  # ATC-10: the whole EE database used to be mounted into the site's php container.
+  Scenario: The site's php container has no access to the EasyEngine DB, only to its own admin-tools flags
+    Given the site 'bh-admin-tools-command-4.test' exists, created with '--type=php'
+      And admin-tools are enabled on 'bh-admin-tools-command-4.test'
+    Then the 'php' container of site 'bh-admin-tools-command-4.test' should have a mount from '/opt/easyengine/sites/bh-admin-tools-command-4.test/config/admin-tools' at '/etc/easyengine/admin-tools'
+      And the 'php' container of site 'bh-admin-tools-command-4.test' should have a read-only mount at '/etc/easyengine/admin-tools'
+      And the 'nginx' container of site 'bh-admin-tools-command-4.test' should not have a mount at '/etc/easyengine/admin-tools'
+      And the file '/opt/easyengine/sites/bh-admin-tools-command-4.test/config/admin-tools/site.json' should contain '{"mailhog":false,"page_cache":false}'
+    When I run 'docker-compose exec -T --user www-data php sh -c "test ! -e /opt/easyengine && ls /etc/easyengine/admin-tools"' in the directory '/opt/easyengine/sites/bh-admin-tools-command-4.test'
+    Then the last command should succeed
+      And STDOUT of the last command should contain:
+      """
+      site.json
+      """
+    When I run 'docker-compose exec -T --user www-data php sh -c "touch /etc/easyengine/admin-tools/site.json"' in the directory '/opt/easyengine/sites/bh-admin-tools-command-4.test'
+    Then the last command should fail
+
+  Scenario: The flags file follows the site's page cache
+    Given the site 'bh-admin-tools-command-5.test' exists, created with '--type=php --cache --with-db'
+      And admin-tools are enabled on 'bh-admin-tools-command-5.test'
+    Then the file '/opt/easyengine/sites/bh-admin-tools-command-5.test/config/admin-tools/site.json' should contain '"page_cache":true'
+      And the 'php' container of site 'bh-admin-tools-command-5.test' should not have a mount at '/opt/easyengine/db/ee.sqlite'
 
   Scenario: The php container gets the site's redis and db hosts
     Given the site 'bh-admin-tools-command-5.test' exists, created with '--type=php --cache --with-db'
@@ -51,7 +75,8 @@ Feature: Enable admin-tools on a site
     Given the site 'bh-admin-tools-command-4.test' exists, created with '--type=php'
       And admin-tools are enabled on 'bh-admin-tools-command-4.test'
     Then the file '/opt/easyengine/admin-tools/index.php' should exist
-      And the file '/opt/easyengine/admin-tools/index.php' should contain "$db_path = '/opt/easyengine/db/ee.sqlite';"
+      And the file '/opt/easyengine/admin-tools/index.php' should contain "$site_data_file = '/etc/easyengine/admin-tools/site.json';"
+      And the file '/opt/easyengine/admin-tools/index.php' should not contain 'SQLite3'
       And the file '/opt/easyengine/admin-tools/index.php' should contain "$scan_dir = '/var/www/htdocs/ee-admin';"
       And the file '/opt/easyengine/admin-tools/phpinfo.php' should contain 'phpinfo()'
       And the file '/opt/easyengine/admin-tools/opcache-gui.php' should exist
