@@ -100,6 +100,8 @@ Feature: Installation of the shared admin-tools
       """
       And the file '/opt/easyengine/admin-tools/index.php' should contain "$db_path = '/opt/easyengine/db/ee.sqlite';"
 
+  # Edits ee-tools.json in the ee checkout under test (moved aside and put back afterwards).
+  @destructive
   Scenario Outline: An invalid ee-tools.json aborts before the site is changed
     Given the file 'vendor/easyengine/admin-tools-command/ee-tools.json' in the ee checkout contains '<content>'
     When I run 'bin/ee admin-tools enable bh-admin-tools-command-15.test'

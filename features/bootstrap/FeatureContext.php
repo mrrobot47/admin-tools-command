@@ -57,6 +57,7 @@ $runner->init_config();
 use Behat\Behat\Context\Context;
 use Behat\Behat\Hook\Scope\AfterFeatureScope;
 use Behat\Behat\Hook\Scope\AfterScenarioScope;
+use Behat\Testwork\Hook\Scope\BeforeSuiteScope;
 
 use Behat\Gherkin\Node\PyStringNode,
 	Behat\Gherkin\Node\TableNode;
@@ -417,11 +418,18 @@ class FeatureContext implements Context
 	/** @var array Paths moved aside by a step, restored after the scenario: original => backup. */
 	private $moved_paths = [];
 
-	/** @var array Files overwritten by a step, restored after the scenario: path => original content. */
-	private $overwritten_files = [];
-
 	/** @var array|null Snapshot of the global http auth state (DB rows and proxy files). */
 	private $auth_snapshot;
+
+	/** @var string|null Last response body kept by `I remember the response body`. */
+	private $remembered_body;
+
+	/**
+	 * The auth snapshot is also kept on disk so a run killed mid-scenario (fatal error, Ctrl-C) can be restored by the next run.
+	 */
+	const AUTH_SNAPSHOT_FILE = '/var/tmp/behat-admin-tools-command-auth-snapshot.json';
+
+	const ASIDE_SUFFIX = '.behat-aside';
 
 	private static function db() {
 		$pdo = new PDO( 'sqlite:' . EE_ROOT_DIR . '/db/ee.sqlite' );
@@ -475,7 +483,7 @@ class FeatureContext implements Context
 		return sprintf( "Command: %s\nExit code: %s\nSTDOUT:\n%s\nSTDERR:\n%s", $run->command, $run->return_code, $run->stdout, $run->stderr );
 	}
 
-	private function run_or_fail( $command ) {
+	private static function run_or_fail( $command ) {
 		$run = EE::launch( $command, false, true );
 		if ( 0 !== $run->return_code ) {
 			throw new Exception( "Setup command failed.\n" . self::describe( $run ) );
@@ -487,10 +495,10 @@ class FeatureContext implements Context
 	/**
 	 * Regenerates the proxy config (the template checks htpasswd/acl files with `exists`) and reloads it.
 	 */
-	private function reload_global_proxy() {
+	private static function reload_global_proxy() {
 		$proxy = self::proxy_container();
-		$this->run_or_fail( sprintf( 'docker exec %s sh -c "/app/docker-entrypoint.sh /usr/local/bin/docker-gen /app/nginx.tmpl /etc/nginx/conf.d/default.conf"', $proxy ) );
-		$this->run_or_fail( sprintf( 'docker exec %s sh -c "nginx -t && nginx -s reload"', $proxy ) );
+		self::run_or_fail( sprintf( 'docker exec %s sh -c "/app/docker-entrypoint.sh /usr/local/bin/docker-gen /app/nginx.tmpl /etc/nginx/conf.d/default.conf"', $proxy ) );
+		self::run_or_fail( sprintf( 'docker exec %s sh -c "nginx -t && nginx -s reload"', $proxy ) );
 	}
 
 	/**
@@ -624,7 +632,7 @@ class FeatureContext implements Context
 		if ( self::site_row( $site ) ) {
 			return;
 		}
-		$this->run_or_fail( sprintf( 'bin/ee site create %s %s', escapeshellarg( $site ), $flags ) );
+		self::run_or_fail( sprintf( 'bin/ee site create %s %s', escapeshellarg( $site ), $flags ) );
 		if ( ! self::site_row( $site ) ) {
 			throw new Exception( "Site $site was not found in the database after creation." );
 		}
@@ -639,7 +647,7 @@ class FeatureContext implements Context
 			throw new Exception( "Site $site does not exist." );
 		}
 		if ( (int) $row['site_enabled'] ) {
-			$this->run_or_fail( sprintf( 'bin/ee site disable %s', escapeshellarg( $site ) ) );
+			self::run_or_fail( sprintf( 'bin/ee site disable %s', escapeshellarg( $site ) ) );
 		}
 	}
 
@@ -652,7 +660,7 @@ class FeatureContext implements Context
 			throw new Exception( "Site $site does not exist." );
 		}
 		if ( ! (int) $row['site_enabled'] ) {
-			$this->run_or_fail( sprintf( 'bin/ee site enable %s', escapeshellarg( $site ) ) );
+			self::run_or_fail( sprintf( 'bin/ee site enable %s', escapeshellarg( $site ) ) );
 		}
 	}
 
@@ -718,6 +726,22 @@ class FeatureContext implements Context
 		if ( empty( self::db_rows( 'SELECT id FROM auth_users WHERE site_url = ? AND username = ?', [ $scope, $user ] ) ) ) {
 			$all = self::db_rows( 'SELECT site_url, username FROM auth_users' );
 			throw new Exception( "No auth_users row for $scope with user $user. Rows: " . json_encode( $all ) );
+		}
+	}
+
+	/**
+	 * Either auth that guards /ee-admin/: `default_admin_tools`, or a global `default` one (which suppresses it).
+	 *
+	 * @Then the global admin-tools auth should exist
+	 */
+	public function theGlobalAdminToolsAuthShouldExist() {
+		$rows = self::db_rows( "SELECT site_url FROM auth_users WHERE site_url IN ('default', 'default_admin_tools')" );
+		if ( empty( $rows ) ) {
+			throw new Exception( 'Neither a default_admin_tools nor a default auth exists in auth_users.' );
+		}
+		$dir = EE_ROOT_DIR . '/services/nginx-proxy/htpasswd';
+		if ( ! is_file( "$dir/default_admin_tools" ) && ! is_file( "$dir/default" ) ) {
+			throw new Exception( "Neither $dir/default_admin_tools nor $dir/default exists." );
 		}
 	}
 
@@ -1011,6 +1035,28 @@ class FeatureContext implements Context
 	}
 
 	/**
+	 * @When I remember the response body
+	 */
+	public function iRememberTheResponseBody() {
+		if ( ! $this->response ) {
+			throw new Exception( $this->describe_response() );
+		}
+		$this->remembered_body = $this->response['body'];
+	}
+
+	/**
+	 * @Then the response body should differ from the remembered one
+	 */
+	public function theResponseBodyShouldDifferFromTheRememberedOne() {
+		if ( null === $this->remembered_body ) {
+			throw new Exception( 'No response body has been remembered in this scenario.' );
+		}
+		if ( ! $this->response || $this->response['body'] === $this->remembered_body ) {
+			throw new Exception( "Response body is identical to the remembered one (served from a cache?).\n" . $this->describe_response() );
+		}
+	}
+
+	/**
 	 * @Then the response header :name should contain :text
 	 */
 	public function theResponseHeaderShouldContain( $name, $text ) {
@@ -1055,7 +1101,11 @@ class FeatureContext implements Context
 		if ( ! file_exists( $path ) ) {
 			throw new Exception( "Cannot move $path aside: it does not exist." );
 		}
-		$backup = $path . '.behat-aside-' . getmypid();
+		// A fixed name, so a backup left by a killed run is found instead of being buried under a new one.
+		$backup = $path . self::ASIDE_SUFFIX;
+		if ( file_exists( $backup ) ) {
+			throw new Exception( "$backup already exists (left by an interrupted run?). Restore it to $path by hand first." );
+		}
 		if ( ! rename( $path, $backup ) ) {
 			throw new Exception( "Could not move $path to $backup." );
 		}
@@ -1063,7 +1113,7 @@ class FeatureContext implements Context
 	}
 
 	/**
-	 * Overwrites a file inside the core checkout under test; the original is put back after the scenario.
+	 * Overwrites a file inside the core checkout under test; the original is moved aside and put back after the scenario.
 	 *
 	 * @Given the file :path in the ee checkout contains :content
 	 */
@@ -1072,10 +1122,12 @@ class FeatureContext implements Context
 		if ( ! is_file( $full ) ) {
 			throw new Exception( "File $full does not exist." );
 		}
-		if ( ! array_key_exists( $full, $this->overwritten_files ) ) {
-			$this->overwritten_files[ $full ] = file_get_contents( $full );
+		if ( ! isset( $this->moved_paths[ $full ] ) ) {
+			$this->thePathIsMovedAside( $full );
 		}
-		file_put_contents( $full, $content );
+		if ( false === file_put_contents( $full, $content ) ) {
+			throw new Exception( "Could not write $full." );
+		}
 	}
 
 	private static function auth_files() {
@@ -1083,7 +1135,7 @@ class FeatureContext implements Context
 		foreach ( [ 'htpasswd/*', 'vhost.d/*_acl' ] as $glob ) {
 			foreach ( glob( EE_ROOT_DIR . '/services/nginx-proxy/' . $glob ) ?: [] as $file ) {
 				if ( is_file( $file ) ) {
-					$files[ $file ] = [ file_get_contents( $file ), fileperms( $file ) & 0777 ];
+					$files[ $file ] = [ base64_encode( file_get_contents( $file ) ), fileperms( $file ) & 0777 ];
 				}
 			}
 		}
@@ -1092,7 +1144,7 @@ class FeatureContext implements Context
 	}
 
 	/**
-	 * Snapshots global auth rows, the global whitelist and all htpasswd/acl files; restored after the scenario.
+	 * Snapshots global auth rows, the global whitelist and all htpasswd/acl files (site files embed the global users); restored after the scenario.
 	 *
 	 * @Given I snapshot the global http auth state
 	 */
@@ -1100,42 +1152,123 @@ class FeatureContext implements Context
 		if ( null !== $this->auth_snapshot ) {
 			return;
 		}
-		$this->auth_snapshot = [
+		// A snapshot left by a killed run holds the real original state: put it back before taking a new one.
+		$errors = self::restore_stale_auth_snapshot();
+		if ( $errors ) {
+			throw new Exception( implode( "\n", $errors ) );
+		}
+		$snapshot = [
 			'users' => self::db_rows( "SELECT * FROM auth_users WHERE site_url IN ('default', 'default_admin_tools')" ),
 			'ips'   => self::db_rows( "SELECT * FROM auth_ips WHERE site_url = 'default'" ),
 			'files' => self::auth_files(),
 		];
+		$json = json_encode( $snapshot );
+		// Holds plain-text auth passwords.
+		if ( false === $json || false === @file_put_contents( self::AUTH_SNAPSHOT_FILE, $json ) || ! @chmod( self::AUTH_SNAPSHOT_FILE, 0600 ) ) {
+			throw new Exception( 'Could not save the global http auth snapshot to ' . self::AUTH_SNAPSHOT_FILE . '; refusing to change the global auth.' );
+		}
+		$this->auth_snapshot = $snapshot;
+	}
+
+	/**
+	 * @BeforeSuite
+	 */
+	public static function restoreStaleAuthSnapshot( BeforeSuiteScope $scope ) {
+		$errors = self::restore_stale_auth_snapshot();
+		if ( $errors ) {
+			throw new Exception( implode( "\n", $errors ) );
+		}
+	}
+
+	private static function restore_stale_auth_snapshot() {
+		if ( ! is_file( self::AUTH_SNAPSHOT_FILE ) ) {
+			return [];
+		}
+		$snapshot = json_decode( (string) file_get_contents( self::AUTH_SNAPSHOT_FILE ), true );
+		if ( ! is_array( $snapshot ) || ! isset( $snapshot['users'], $snapshot['ips'], $snapshot['files'] ) ) {
+			return [ 'Unreadable global http auth snapshot ' . self::AUTH_SNAPSHOT_FILE . ' left by an interrupted run; restore or delete it by hand.' ];
+		}
+		fwrite( STDERR, 'Restoring the global http auth state left by an interrupted run from ' . self::AUTH_SNAPSHOT_FILE . "\n" );
+
+		return self::restore_auth_snapshot( $snapshot );
+	}
+
+	/**
+	 * Restores the DB rows, the files and the proxy independently, so one failure does not skip the rest.
+	 * The snapshot file is deleted only once everything succeeded.
+	 *
+	 * @return string[] Errors.
+	 */
+	private static function restore_auth_snapshot( array $snapshot ) {
+		$errors = [];
+
+		try {
+			$pdo = self::db();
+			$pdo->beginTransaction();
+			try {
+				$pdo->exec( "DELETE FROM auth_users WHERE site_url IN ('default', 'default_admin_tools')" );
+				$pdo->exec( "DELETE FROM auth_ips WHERE site_url = 'default'" );
+				foreach ( [ 'auth_users' => $snapshot['users'], 'auth_ips' => $snapshot['ips'] ] as $table => $rows ) {
+					foreach ( $rows as $row ) {
+						self::insert_row( $pdo, $table, $row );
+					}
+				}
+				$pdo->commit();
+			} catch ( Throwable $e ) {
+				$pdo->rollBack();
+				throw $e;
+			}
+		} catch ( Throwable $e ) {
+			$errors[] = 'Could not restore the global auth DB rows: ' . $e->getMessage();
+		}
+
+		$base = EE_ROOT_DIR . '/services/nginx-proxy/';
+		foreach ( [ 'htpasswd/default', 'htpasswd/default_admin_tools', 'vhost.d/default_acl' ] as $global_file ) {
+			if ( ! isset( $snapshot['files'][ $base . $global_file ] ) && file_exists( $base . $global_file ) && ! @unlink( $base . $global_file ) ) {
+				$errors[] = "Could not remove $base$global_file.";
+			}
+		}
+		foreach ( $snapshot['files'] as $file => $data ) {
+			if ( false === @file_put_contents( $file, base64_decode( $data[0] ) ) || ! @chmod( $file, $data[1] ) ) {
+				$errors[] = "Could not restore $file.";
+			}
+		}
+
+		try {
+			self::reload_global_proxy();
+		} catch ( Throwable $e ) {
+			$errors[] = 'Could not reload the proxy: ' . $e->getMessage();
+		}
+
+		if ( ! $errors && is_file( self::AUTH_SNAPSHOT_FILE ) && ! @unlink( self::AUTH_SNAPSHOT_FILE ) ) {
+			$errors[] = 'Could not delete ' . self::AUTH_SNAPSHOT_FILE . '.';
+		}
+
+		return $errors;
+	}
+
+	private static function insert_row( PDO $pdo, $table, array $row ) {
+		$insert = function ( array $row ) use ( $pdo, $table ) {
+			$cols = array_keys( $row );
+			$pdo->prepare( sprintf( 'INSERT INTO %s (%s) VALUES (%s)', $table, implode( ',', $cols ), implode( ',', array_fill( 0, count( $cols ), '?' ) ) ) )->execute( array_values( $row ) );
+		};
+		try {
+			$insert( $row );
+		} catch ( PDOException $e ) {
+			// A row created during the scenario reused the id; keep the data under a new id.
+			unset( $row['id'] );
+			$insert( $row );
+		}
 	}
 
 	private function restore_global_http_auth_state() {
 		if ( null === $this->auth_snapshot ) {
-			return;
+			return [];
 		}
-		$pdo = self::db();
-		$pdo->beginTransaction();
-		$pdo->exec( "DELETE FROM auth_users WHERE site_url IN ('default', 'default_admin_tools')" );
-		$pdo->exec( "DELETE FROM auth_ips WHERE site_url = 'default'" );
-		foreach ( [ 'auth_users' => $this->auth_snapshot['users'], 'auth_ips' => $this->auth_snapshot['ips'] ] as $table => $rows ) {
-			foreach ( $rows as $row ) {
-				$cols = array_keys( $row );
-				$stmt = $pdo->prepare( sprintf( 'INSERT INTO %s (%s) VALUES (%s)', $table, implode( ',', $cols ), implode( ',', array_fill( 0, count( $cols ), '?' ) ) ) );
-				$stmt->execute( array_values( $row ) );
-			}
-		}
-		$pdo->commit();
-
-		$base = EE_ROOT_DIR . '/services/nginx-proxy/';
-		foreach ( [ 'htpasswd/default', 'htpasswd/default_admin_tools', 'vhost.d/default_acl' ] as $global_file ) {
-			if ( ! isset( $this->auth_snapshot['files'][ $base . $global_file ] ) && file_exists( $base . $global_file ) ) {
-				unlink( $base . $global_file );
-			}
-		}
-		foreach ( $this->auth_snapshot['files'] as $file => $data ) {
-			file_put_contents( $file, $data[0] );
-			chmod( $file, $data[1] );
-		}
+		$errors              = self::restore_auth_snapshot( $this->auth_snapshot );
 		$this->auth_snapshot = null;
-		$this->reload_global_proxy();
+
+		return $errors;
 	}
 
 	/**
@@ -1149,7 +1282,7 @@ class FeatureContext implements Context
 		foreach ( [ 'htpasswd/default', 'htpasswd/default_admin_tools', 'vhost.d/default_acl' ] as $file ) {
 			@unlink( EE_ROOT_DIR . '/services/nginx-proxy/' . $file );
 		}
-		$this->reload_global_proxy();
+		self::reload_global_proxy();
 	}
 
 	/* ===================================================================================
@@ -1188,7 +1321,7 @@ class FeatureContext implements Context
 		if ( (int) $row['admin_tools'] && $this->admin_mounts( $site ) === [ true, true ] ) {
 			return;
 		}
-		$this->run_or_fail( sprintf( 'bin/ee admin-tools enable %s --force', escapeshellarg( $site ) ) );
+		self::run_or_fail( sprintf( 'bin/ee admin-tools enable %s --force', escapeshellarg( $site ) ) );
 	}
 
 	/**
@@ -1203,7 +1336,7 @@ class FeatureContext implements Context
 		if ( ! (int) $row['admin_tools'] && $this->admin_mounts( $site ) === [ false, false ] ) {
 			return;
 		}
-		$this->run_or_fail( sprintf( 'bin/ee admin-tools disable %s --force', escapeshellarg( $site ) ) );
+		self::run_or_fail( sprintf( 'bin/ee admin-tools disable %s --force', escapeshellarg( $site ) ) );
 	}
 
 	/**
@@ -1211,35 +1344,36 @@ class FeatureContext implements Context
 	 */
 	public function cleanupScenario(AfterScenarioScope $scope)
 	{
-		$errors = [];
+		// Every restore runs even if an earlier one fails (Behat turns warnings in hooks into exceptions).
+		try {
+			$errors = $this->restore_global_http_auth_state();
+		} catch ( Throwable $e ) {
+			$errors = [ 'Could not restore the global http auth state: ' . $e->getMessage() ];
+		}
 
 		foreach ( array_reverse( $this->moved_paths, true ) as $path => $backup ) {
-			if ( file_exists( $path ) ) {
-				exec( 'rm -rf ' . escapeshellarg( $path ) );
-			}
-			if ( ! rename( $backup, $path ) ) {
-				$errors[] = "Could not restore $path from $backup.";
+			try {
+				if ( ! file_exists( $backup ) ) {
+					$errors[] = "Backup $backup of $path is missing; left $path untouched.";
+					continue;
+				}
+				if ( file_exists( $path ) ) {
+					exec( 'rm -rf ' . escapeshellarg( $path ), $out, $code );
+				}
+				if ( ! rename( $backup, $path ) ) {
+					$errors[] = "Could not restore $path from $backup.";
+				}
+			} catch ( Throwable $e ) {
+				$errors[] = "Could not restore $path from $backup: " . $e->getMessage();
 			}
 		}
 		$this->moved_paths = [];
 
-		foreach ( $this->overwritten_files as $file => $content ) {
-			if ( false === file_put_contents( $file, $content ) ) {
-				$errors[] = "Could not restore $file.";
-			}
-		}
-		$this->overwritten_files = [];
-
-		try {
-			$this->restore_global_http_auth_state();
-		} catch ( Exception $e ) {
-			$errors[] = 'Could not restore the global http auth state: ' . $e->getMessage();
-		}
-
-		$this->commands     = [];
-		$this->response     = null;
-		$this->request_ip   = null;
-		$this->request_auth = null;
+		$this->commands        = [];
+		$this->response        = null;
+		$this->request_ip      = null;
+		$this->request_auth    = null;
+		$this->remembered_body = null;
 		chdir($this->ee_path);
 
 		if ( $errors ) {
