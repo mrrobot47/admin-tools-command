@@ -1057,7 +1057,8 @@ class FeatureContext implements Context
 	 * @Then the response code should not be :code
 	 */
 	public function theResponseCodeShouldNotBe( $code ) {
-		if ( ! $this->response || (int) $code === $this->response['code'] ) {
+		// A transport failure (code 0) is not "some other code".
+		if ( ! $this->response || 0 === $this->response['code'] || '' !== $this->response['error'] || (int) $code === $this->response['code'] ) {
 			throw new Exception( "Expected any HTTP code but $code.\n" . $this->describe_response() );
 		}
 	}
@@ -1075,7 +1076,8 @@ class FeatureContext implements Context
 	 * @Then the response body should not contain :text
 	 */
 	public function theResponseBodyShouldNotContain( $text ) {
-		if ( ! $this->response || false !== strpos( $this->response['body'], $text ) ) {
+		// An empty body from a failed request proves nothing.
+		if ( ! $this->response || 0 === $this->response['code'] || '' !== $this->response['error'] || false !== strpos( $this->response['body'], $text ) ) {
 			throw new Exception( "Response body unexpectedly contains: $text\n" . $this->describe_response() );
 		}
 	}
@@ -1218,8 +1220,11 @@ class FeatureContext implements Context
 			'files' => self::auth_files(),
 		];
 		$json = json_encode( $snapshot );
-		// Holds plain-text auth passwords.
-		if ( false === $json || false === @file_put_contents( self::AUTH_SNAPSHOT_FILE, $json ) || ! @chmod( self::AUTH_SNAPSHOT_FILE, 0600 ) ) {
+		// Holds plain-text auth passwords: create it private and never write through a planted symlink.
+		$umask = umask( 0077 );
+		$saved = false !== $json && ! is_link( self::AUTH_SNAPSHOT_FILE ) && false !== @file_put_contents( self::AUTH_SNAPSHOT_FILE, $json ) && @chmod( self::AUTH_SNAPSHOT_FILE, 0600 );
+		umask( $umask );
+		if ( ! $saved ) {
 			throw new Exception( 'Could not save the global http auth snapshot to ' . self::AUTH_SNAPSHOT_FILE . '; refusing to change the global auth.' );
 		}
 		$this->auth_snapshot = $snapshot;
@@ -1236,12 +1241,24 @@ class FeatureContext implements Context
 	}
 
 	private static function restore_stale_auth_snapshot() {
-		if ( ! is_file( self::AUTH_SNAPSHOT_FILE ) ) {
+		if ( ! is_file( self::AUTH_SNAPSHOT_FILE ) && ! is_link( self::AUTH_SNAPSHOT_FILE ) ) {
 			return [];
 		}
+		// /var/tmp is shared: only trust a snapshot this user wrote, and only for the proxy's auth files.
+		$uid = function_exists( 'posix_geteuid' ) ? posix_geteuid() : 0;
+		clearstatcache();
+		if ( is_link( self::AUTH_SNAPSHOT_FILE ) || fileowner( self::AUTH_SNAPSHOT_FILE ) !== $uid || ( fileperms( self::AUTH_SNAPSHOT_FILE ) & 0077 ) ) {
+			return [ 'Untrusted global http auth snapshot ' . self::AUTH_SNAPSHOT_FILE . ' (symlink, foreign owner or not 0600); check and delete it by hand.' ];
+		}
 		$snapshot = json_decode( (string) file_get_contents( self::AUTH_SNAPSHOT_FILE ), true );
-		if ( ! is_array( $snapshot ) || ! isset( $snapshot['users'], $snapshot['ips'], $snapshot['files'] ) ) {
+		if ( ! is_array( $snapshot ) || ! isset( $snapshot['users'], $snapshot['ips'], $snapshot['files'] ) || ! is_array( $snapshot['files'] ) ) {
 			return [ 'Unreadable global http auth snapshot ' . self::AUTH_SNAPSHOT_FILE . ' left by an interrupted run; restore or delete it by hand.' ];
+		}
+		$allowed = '#^' . preg_quote( EE_ROOT_DIR . '/services/nginx-proxy/', '#' ) . '(htpasswd/[^/]+|vhost\.d/[^/]+_acl)$#';
+		foreach ( array_keys( $snapshot['files'] ) as $file ) {
+			if ( ! preg_match( $allowed, $file ) ) {
+				return [ 'Global http auth snapshot ' . self::AUTH_SNAPSHOT_FILE . " names an unexpected file $file; check and delete it by hand." ];
+			}
 		}
 		fwrite( STDERR, 'Restoring the global http auth state left by an interrupted run from ' . self::AUTH_SNAPSHOT_FILE . "\n" );
 
