@@ -168,8 +168,7 @@ Feature: admin-tools over HTTP
     When I run 'bin/ee auth delete bh-admin-tools-command-12.test --user=bh-site-user'
     Then the last command should succeed
 
-  # ATC-5 (new): index.php looks the site up by exact HTTP_HOST, so on an alias domain it finds no row and drops the pra (and mailhog) links.
-  @known-bug
+  # ATC-5: index.php looked the site up by exact HTTP_HOST, so on an alias domain it found no row and dropped the pra (and mailhog) links.
   Scenario: The index on an alias domain lists the same tools as on the main domain
     Given the site 'bh-admin-tools-command-13.test' exists, created with '--type=php --cache --alias-domains=bh-admin-tools-command-13-alias.test'
       And admin-tools are enabled on 'bh-admin-tools-command-13.test'
@@ -179,6 +178,24 @@ Feature: admin-tools over HTTP
     Then the response body should contain '<a href="pra">pra</a>'
     When I request 'http://bh-admin-tools-command-13-alias.test/ee-admin/' until it returns 200 within 60 seconds
     Then the response body should contain '<a href="pra">pra</a>'
+      And the response body should not contain 'Warning'
+
+  # ATC-5: index.php also concatenated HTTP_HOST into its SQL. A Host under a wildcard alias reaches the site with quotes
+  # and parentheses intact and whitelisted clients need no credentials, so it was a boolean oracle over the EE database.
+  Scenario: A crafted Host header under a wildcard alias does not change the index lookup
+    Given the site 'bh-admin-tools-command-21.test' exists, created with '--type=php --cache --alias-domains="*.bh-admin-tools-command-21-wild.test"'
+      And admin-tools are enabled on 'bh-admin-tools-command-21.test'
+      And I send requests via 127.0.0.1
+      And I use no basic auth
+    When I request 'http://bh-admin-tools-command-21.test/ee-admin/' until it returns 200 within 60 seconds
+    Then the response body should contain '<a href="pra">pra</a>'
+    When I request 'http://bh-admin-tools-command-21.test/ee-admin/' with the Host header "x'AND(1=2)AND'.bh-admin-tools-command-21-wild.test"
+    Then the response code should be 200
+      And the response body should contain '<a href="pra">pra</a>'
+      And the response body should not contain 'Warning'
+    When I request 'http://bh-admin-tools-command-21.test/ee-admin/' with the Host header "x'OR(SELECT(count(*))FROM(auth_users))>0OR'.bh-admin-tools-command-21-wild.test"
+    Then the response code should be 200
+      And the response body should contain '<a href="pra">pra</a>'
       And the response body should not contain 'Warning'
 
   Scenario: The index lists MailHog only while it is enabled on the site

@@ -954,7 +954,7 @@ class FeatureContext implements Context
 		$this->request_auth = null;
 	}
 
-	private function http_request( $url ) {
+	private function http_request( $url, $host_header = null ) {
 		$parts = parse_url( $url );
 		if ( empty( $parts['host'] ) ) {
 			throw new Exception( "Invalid URL: $url" );
@@ -970,6 +970,9 @@ class FeatureContext implements Context
 		curl_setopt( $ch, CURLOPT_SSL_VERIFYPEER, false );
 		curl_setopt( $ch, CURLOPT_CONNECTTIMEOUT, 10 );
 		curl_setopt( $ch, CURLOPT_TIMEOUT, 60 );
+		if ( null !== $host_header ) {
+			curl_setopt( $ch, CURLOPT_HTTPHEADER, [ 'Host: ' . $host_header ] );
+		}
 		if ( $this->request_auth ) {
 			curl_setopt( $ch, CURLOPT_HTTPAUTH, CURLAUTH_BASIC );
 			curl_setopt( $ch, CURLOPT_USERPWD, $this->request_auth[0] . ':' . $this->request_auth[1] );
@@ -981,7 +984,7 @@ class FeatureContext implements Context
 		curl_close( $ch );
 
 		$this->response = [
-			'url'     => $url,
+			'url'     => null === $host_header ? $url : "$url (Host: $host_header)",
 			'via'     => $ip,
 			'code'    => $code,
 			'error'   => $error,
@@ -1004,6 +1007,15 @@ class FeatureContext implements Context
 	 */
 	public function iRequest( $url ) {
 		$this->http_request( $url );
+	}
+
+	/**
+	 * Connects to the URL's host but sends another Host header, e.g. one that curl rejects inside a URL.
+	 *
+	 * @When I request :url with the Host header :host
+	 */
+	public function iRequestWithTheHostHeader( $url, $host ) {
+		$this->http_request( $url, $host );
 	}
 
 	/**
