@@ -43,7 +43,7 @@ Suite for `ee admin-tools` (package `easyengine/admin-tools-command`, based on `
 | `init_global_admin_tools_auth()` reuses existing admin-tools auth | enable: "Enable admin-tools on a php site"; auth: "Enabling keeps an existing admin-tools auth" (needs a `default_admin_tools` auth, asserted as a precondition) |
 | `init_global_admin_tools_auth()` creates auth `easyengine`, htpasswd file and whitelist (the frontend subnet, `10.1.0.0/16` unless the host routes it) | auth: "Enabling creates the admin-tools auth and whitelist when none exist", "Re-enabling with --force restores the missing admin-tools auth" |
 | global `default` auth used instead of admin-tools auth | auth: "A global auth protects /ee-admin/ when there is no admin-tools auth" |
-| `ee auth create global` interplay | auth: "Creating a global auth keeps the admin-tools auth" (`@known-bug` AUTH-8) |
+| `ee auth create global` interplay | auth: "Creating a global auth keeps the admin-tools auth" (regression check, AUTH-8 fixed in v4.13.2) |
 | init runs before site validation | auth: "A failed enable on an unknown site leaves the global auth untouched" (`@known-bug` ATC-3) |
 | install: tools dir created, "Installing admin-tools..." | install: "A fresh install downloads and configures every tool" (`@network`) |
 | install_index (DB path, scan dir) | enable: "The shared tools are installed ..."; install: fresh install, "A missing index is regenerated from the template" |
@@ -56,7 +56,7 @@ Suite for `ee admin-tools` (package `easyengine/admin-tools-command`, based on `
 | ee-tools.json with a non-json extension | not covered: `ADMIN_TOOLS_FILE` is a constant defined before the command loads |
 | pra fallback when the GitHub API fails, fixed `version` | not covered: needs a network failure or a code change |
 | HTTP: `/ee-admin/`, `index.php`, `phpinfo.php`, `opcache-gui.php`, `pma/`, `nginx_status`, `status`, `ping` with credentials | http: "Each tool is served with the admin-tools credentials" |
-| HTTP: `pra/` (listed and served only with fullpage cache) | http: "The index lists phpRedisAdmin on a site with cache and it is served", "The index lists the tools but not phpRedisAdmin on a site without cache" |
+| HTTP: `pra/` (listed and served only with fullpage cache) | http: "The index lists phpRedisAdmin on a site with cache and it is served" (`@known-bug` ATC-11 since phpRedisAdmin v1.27.0), "The index lists the tools but not phpRedisAdmin on a site without cache" |
 | HTTP: 401 without / with wrong credentials, realm "Admin Tools" | http: "Each tool requires the admin-tools credentials from outside the whitelist" |
 | HTTP: whitelisted client (127.0.0.1) without credentials | http: "Whitelisted clients reach the tools without credentials"; auth: first scenario |
 | HTTP: `/ee-admin/` protected and 404 before enabling; status pages available without enabling | http: "/ee-admin/ is protected even before admin-tools are enabled", "Status pages are served by the site config ..." |
@@ -74,7 +74,7 @@ Suite for `ee admin-tools` (package `easyengine/admin-tools-command`, based on `
 | `ee site update --delete-alias-domains` / `--ssl=off` | not covered separately: same `docker_compose_up(…, ['nginx'])` path as the rows above (ATC-1) |
 | `ee site update --php=<ver>` keeps admin-tools (runs `enable --force`, which re-enables them) | not covered: pulls another php image (~200 MB) |
 | site delete keeps the shared tools and auth | lifecycle: "Deleting a site with admin-tools keeps the shared tools for other sites" |
-| disable on a site without php | cli: "Force-disabling on an html site fails instead of reporting success" (`@known-bug` ATC-4) |
+| disable on a site without php | cli: "Force-disabling on an html site fails instead of reporting success" (regression check, ATC-4 fixed in v4.13.2) |
 | enable failure path (`docker-compose up` fails) | not covered: needs a broken compose setup |
 | `ee site clone` of a site with admin-tools | not covered: belongs to site-command; the cloner runs the installed `ee` binary, not `bin/ee` |
 | mailhog link in the index | http: "The index lists MailHog only while it is enabled on the site" |
@@ -88,7 +88,7 @@ Estimated coverage: about 88% of the inventory (57 of 65 items); the gaps are li
 - `@destructive` (14 scenario rows): change server-wide state. `admin-tools-auth.feature` snapshots the global auth rows (`auth_users` for `default`/`default_admin_tools`, `auth_ips` for `default`) and every `htpasswd/*` and `vhost.d/*_acl` file (site files embed the global users), and restores them after each scenario, then regenerates and reloads nginx-proxy. While a scenario runs, other sites on the server may be behind a global auth, lose the global whitelist, or (with no global htpasswd at all) serve `/ee-admin/` without auth on the public IP. `admin-tools-install.feature` moves `/opt/easyengine/admin-tools` (or one file of it) aside, and overwrites the checkout's `ee-tools.json`, putting them back afterwards.
 - Failure safety: the auth snapshot is also written to `/var/tmp/behat-admin-tools-command-auth-snapshot.json` (0600, it holds the plain-text auth passwords) before anything is changed, and deleted only after a complete restore. The DB rows, the files and the proxy reload are restored independently, so one failure does not skip the others; a failed restore keeps the file, and the next scenario's snapshot step or the next run's `@BeforeSuite` restores it first (a run killed mid-scenario is recovered the same way). Moved-aside paths use a fixed `<path>.behat-aside` name: a leftover from an interrupted run makes the step fail instead of being buried, and the restore never deletes the new path unless the backup exists. Site creation in the Background runs before the snapshot, so a global admin-tools auth that `ee site create` adds on a server without one is kept.
 - `@network` (1): downloads phpMyAdmin, phpRedisAdmin, predis and opcache-gui.
-- `@known-bug` (6 scenario rows): ATC-1 (2 rows), ATC-2, ATC-3, ATC-4 and AUTH-8 (all in issues.md). They assert the correct behaviour, so they fail until fixed. The two ATC-5 scenarios are no longer tagged (fixed on `fix/escape-index-sql`, not merged yet), so they fail against a develop without the fix. The ATC-10 assertions (no EE DB mount, per-site flags file) are regular too and need `fix/no-db-mount-in-site-containers`. Exclude them with `--tags='~@known-bug'`.
+- `@known-bug` (5 scenario rows): ATC-1 (2 rows), ATC-2, ATC-3 and ATC-11 (all in issues.md). They assert the correct behaviour, so they fail until fixed. ATC-4, ATC-5, ATC-10 (admin-tools-command#54) and AUTH-8 (auth-command#60) are fixed in v4.13.2 and their scenarios are regular. Exclude the known bugs with `--tags='~@known-bug'`.
 - No `@le` or `@remote` scenarios: nothing here needs public DNS or backups.
 
 ## Product bugs

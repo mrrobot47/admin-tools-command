@@ -131,8 +131,7 @@ Feature: admin-tools command line interface
       admin-tools already seem to be disabled for bh-admin-tools-command-2.test
       """
 
-  # ATC-4 (new): disable ignores the `docker-compose up -d nginx php` result, so on a site without a php service it prints success.
-  @known-bug
+  # ATC-4 (fixed in v4.13.2), regression check: disable used to ignore the `docker-compose up -d nginx php` result, so on a site without a php service it prints success.
   Scenario: Force-disabling on an html site fails instead of reporting success
     Given the site 'bh-admin-tools-command-2.test' exists, created with '--type=html'
     When I run 'bin/ee admin-tools disable bh-admin-tools-command-2.test --force'

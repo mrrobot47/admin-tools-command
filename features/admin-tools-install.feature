@@ -48,7 +48,8 @@ Feature: Installation of the shared admin-tools
       """
       Success: admin-tools enabled for bh-admin-tools-command-15.test site.
       """
-      And the file '/opt/easyengine/admin-tools/index.php' should contain "$db_path = '/opt/easyengine/db/ee.sqlite';"
+      And the file '/opt/easyengine/admin-tools/index.php' should contain "$site_data_file = '/etc/easyengine/admin-tools/site.json';"
+      And the file '/opt/easyengine/admin-tools/index.php' should not contain 'ee.sqlite'
       And the file '/opt/easyengine/admin-tools/phpinfo.php' should contain 'phpinfo()'
       And the file '/opt/easyengine/admin-tools/opcache-gui.php' should exist
       And the file '/opt/easyengine/admin-tools/pma/config.inc.php' should match "/\$cfg\['blowfish_secret'\] = '[A-Za-z0-9]{32}';/"
@@ -98,7 +99,8 @@ Feature: Installation of the shared admin-tools
       """
       Success: Installed index successfully.
       """
-      And the file '/opt/easyengine/admin-tools/index.php' should contain "$db_path = '/opt/easyengine/db/ee.sqlite';"
+      And the file '/opt/easyengine/admin-tools/index.php' should contain "$site_data_file = '/etc/easyengine/admin-tools/site.json';"
+      And the file '/opt/easyengine/admin-tools/index.php' should not contain 'ee.sqlite'
 
   # Edits ee-tools.json in the ee checkout under test (moved aside and put back afterwards).
   @destructive
