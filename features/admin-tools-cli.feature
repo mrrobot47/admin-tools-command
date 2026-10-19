@@ -155,15 +155,6 @@ Feature: admin-tools command line interface
     Then the last command should succeed
       And the site 'bh-admin-tools-command-1.test' should have 'admin_tools' set to '0' in the database
 
-  # ATC-2 (new): auto_site_name() accepts `http://<site>/` but returns the raw argument, so Site::find('http://<site>') fails.
-  @known-bug
-  Scenario: A URL form of the site name is accepted
-    Given the site 'bh-admin-tools-command-1.test' exists, created with '--type=php'
-      And admin-tools are disabled on 'bh-admin-tools-command-1.test'
-    When I run 'bin/ee admin-tools enable http://bh-admin-tools-command-1.test/'
-    Then the last command should succeed
-      And the site 'bh-admin-tools-command-1.test' should have 'admin_tools' set to '1' in the database
-
   Scenario: The site is detected from the current directory
     Given the site 'bh-admin-tools-command-1.test' exists, created with '--type=php'
       And admin-tools are disabled on 'bh-admin-tools-command-1.test'

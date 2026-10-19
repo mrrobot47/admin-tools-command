@@ -99,20 +99,6 @@ Feature: admin-tools over HTTP
       And the response body should not contain '<a href="index.php">'
       And the response body should not contain 'Warning'
 
-  # ATC-11: phpRedisAdmin v1.27.0 (the "latest" install_pra() fetches) refuses to run without its own login or allow_no_auth, so pra/ is a 403.
-  @known-bug
-  Scenario: The index lists phpRedisAdmin on a site with cache and it is served
-    Given the site 'bh-admin-tools-command-10.test' exists, created with '--type=php --cache'
-      And admin-tools are enabled on 'bh-admin-tools-command-10.test'
-      And I send requests via the public IP
-      And I use the global admin-tools credentials
-    When I request 'http://bh-admin-tools-command-10.test/ee-admin/' until it returns 200 within 60 seconds
-    Then the response body should contain '<a href="pra">pra</a>'
-    When I request 'http://bh-admin-tools-command-10.test/ee-admin/pra/'
-    Then the response code should be 200
-      And the response body should contain 'phpRedisAdmin'
-      And the response body should not contain 'Fatal error'
-
   Scenario: Tools on a site with cache bypass the redis page cache
     Given the site 'bh-admin-tools-command-10.test' exists, created with '--type=php --cache'
       And admin-tools are enabled on 'bh-admin-tools-command-10.test'

@@ -17,7 +17,7 @@ Suite for `ee admin-tools` (package `easyengine/admin-tools-command`, based on `
 | `<site-name>` omitted outside a site dir | cli: "A site name is required outside a site directory" |
 | wrong `<site-name>` inside a site dir (suggestion) | cli: "A wrong site name inside a site directory suggests the right one" |
 | `<site-name>` with trailing slash | cli: "A trailing slash on the site name is accepted" |
-| `<site-name>` as `http://site/` | cli: "A URL form of the site name is accepted" (`@known-bug` ATC-2) |
+| `<site-name>` as `http://site/` | not covered yet: ATC-2 (its scenario comes back with the fix) |
 | unknown site | cli: "An unknown site is rejected" |
 | disabled site (with and without `--force`) | cli: "A disabled site is rejected"; lifecycle: "Disabling and enabling the site re-enables admin-tools" |
 | unknown flag / extra positional | cli: "Unknown flags are rejected", "More than one site name is rejected" |
@@ -44,7 +44,7 @@ Suite for `ee admin-tools` (package `easyengine/admin-tools-command`, based on `
 | `init_global_admin_tools_auth()` creates auth `easyengine`, htpasswd file and whitelist (the frontend subnet, `10.1.0.0/16` unless the host routes it) | auth: "Enabling creates the admin-tools auth and whitelist when none exist", "Re-enabling with --force restores the missing admin-tools auth" |
 | global `default` auth used instead of admin-tools auth | auth: "A global auth protects /ee-admin/ when there is no admin-tools auth" |
 | `ee auth create global` interplay | auth: "Creating a global auth keeps the admin-tools auth" (regression check, AUTH-8 fixed in v4.13.2) |
-| init runs before site validation | auth: "A failed enable on an unknown site leaves the global auth untouched" (`@known-bug` ATC-3) |
+| init runs before site validation | not covered yet: ATC-3 (its scenario comes back with the fix) |
 | install: tools dir created, "Installing admin-tools..." | install: "A fresh install downloads and configures every tool" (`@network`) |
 | install_index (DB path, scan dir) | enable: "The shared tools are installed ..."; install: fresh install, "A missing index is regenerated from the template" |
 | install_phpinfo | install: "Only a missing tool is reinstalled" |
@@ -56,7 +56,7 @@ Suite for `ee admin-tools` (package `easyengine/admin-tools-command`, based on `
 | ee-tools.json with a non-json extension | not covered: `ADMIN_TOOLS_FILE` is a constant defined before the command loads |
 | pra fallback when the GitHub API fails, fixed `version` | not covered: needs a network failure or a code change |
 | HTTP: `/ee-admin/`, `index.php`, `phpinfo.php`, `opcache-gui.php`, `pma/`, `nginx_status`, `status`, `ping` with credentials | http: "Each tool is served with the admin-tools credentials" |
-| HTTP: `pra/` (listed and served only with fullpage cache) | http: "The index lists phpRedisAdmin on a site with cache and it is served" (`@known-bug` ATC-11 since phpRedisAdmin v1.27.0), "The index lists the tools but not phpRedisAdmin on a site without cache" |
+| HTTP: `pra/` (listed and served only with fullpage cache) | http: "The index lists the tools but not phpRedisAdmin on a site without cache"; serving `pra/` is not covered yet: ATC-11 since phpRedisAdmin v1.27.0 (its scenario comes back with the fix) |
 | HTTP: 401 without / with wrong credentials, realm "Admin Tools" | http: "Each tool requires the admin-tools credentials from outside the whitelist" |
 | HTTP: whitelisted client (127.0.0.1) without credentials | http: "Whitelisted clients reach the tools without credentials"; auth: first scenario |
 | HTTP: `/ee-admin/` protected and 404 before enabling; status pages available without enabling | http: "/ee-admin/ is protected even before admin-tools are enabled", "Status pages are served by the site config ..." |
@@ -70,7 +70,7 @@ Suite for `ee admin-tools` (package `easyengine/admin-tools-command`, based on `
 | `ee site info` shows / hides "Access admin-tools" | enable: "Site info shows the admin-tools URL once enabled", "Site info does not show admin-tools when disabled" |
 | `ee site disable` + `enable` re-enables admin-tools (class-ee-site `enable()`) | lifecycle: "Disabling and enabling the site re-enables admin-tools", "Enabling a site without admin-tools does not enable them" |
 | `ee site refresh` / `restart` keep the mounts | lifecycle: "Refreshing the site keeps admin-tools", "Restarting the site keeps admin-tools" |
-| `ee site update --add-alias-domains` / `--ssl=self` keep the mounts | lifecycle: "Updating the site keeps admin-tools" (`@known-bug` ATC-1) |
+| `ee site update --add-alias-domains` / `--ssl=self` keep the mounts | not covered yet: ATC-1 (its scenario comes back with the fix) |
 | `ee site update --delete-alias-domains` / `--ssl=off` | not covered separately: same `docker_compose_up(…, ['nginx'])` path as the rows above (ATC-1) |
 | `ee site update --php=<ver>` keeps admin-tools (runs `enable --force`, which re-enables them) | not covered: pulls another php image (~200 MB) |
 | site delete keeps the shared tools and auth | lifecycle: "Deleting a site with admin-tools keeps the shared tools for other sites" |
@@ -85,19 +85,19 @@ Estimated coverage: about 88% of the inventory (57 of 65 items); the gaps are li
 
 ## Tags
 
-- `@destructive` (14 scenario rows): change server-wide state. `admin-tools-auth.feature` snapshots the global auth rows (`auth_users` for `default`/`default_admin_tools`, `auth_ips` for `default`) and every `htpasswd/*` and `vhost.d/*_acl` file (site files embed the global users), and restores them after each scenario, then regenerates and reloads nginx-proxy. While a scenario runs, other sites on the server may be behind a global auth, lose the global whitelist, or (with no global htpasswd at all) serve `/ee-admin/` without auth on the public IP. `admin-tools-install.feature` moves `/opt/easyengine/admin-tools` (or one file of it) aside, and overwrites the checkout's `ee-tools.json`, putting them back afterwards.
+- `@destructive` (13 scenario rows): change server-wide state. `admin-tools-auth.feature` snapshots the global auth rows (`auth_users` for `default`/`default_admin_tools`, `auth_ips` for `default`) and every `htpasswd/*` and `vhost.d/*_acl` file (site files embed the global users), and restores them after each scenario, then regenerates and reloads nginx-proxy. While a scenario runs, other sites on the server may be behind a global auth, lose the global whitelist, or (with no global htpasswd at all) serve `/ee-admin/` without auth on the public IP. `admin-tools-install.feature` moves `/opt/easyengine/admin-tools` (or one file of it) aside, and overwrites the checkout's `ee-tools.json`, putting them back afterwards.
 - Failure safety: the auth snapshot is also written to `/var/tmp/behat-admin-tools-command-auth-snapshot.json` (0600, it holds the plain-text auth passwords) before anything is changed, and deleted only after a complete restore. The DB rows, the files and the proxy reload are restored independently, so one failure does not skip the others; a failed restore keeps the file, and the next scenario's snapshot step or the next run's `@BeforeSuite` restores it first (a run killed mid-scenario is recovered the same way). Moved-aside paths use a fixed `<path>.behat-aside` name: a leftover from an interrupted run makes the step fail instead of being buried, and the restore never deletes the new path unless the backup exists. Site creation in the Background runs before the snapshot, so a global admin-tools auth that `ee site create` adds on a server without one is kept.
 - `@network` (1): downloads phpMyAdmin, phpRedisAdmin, predis and opcache-gui.
-- `@known-bug` (5 scenario rows): ATC-1 (2 rows), ATC-2, ATC-3 and ATC-11 (all in issues.md). They assert the correct behaviour, so they fail until fixed. ATC-4, ATC-5, ATC-10 (admin-tools-command#54) and AUTH-8 (auth-command#60) are fixed in v4.13.2 and their scenarios are regular. Exclude the known bugs with `--tags='~@known-bug'`.
+- No `@known-bug` scenarios ship here: the 5 scenario rows written for open bugs (ATC-1 with 2 rows, ATC-2, ATC-3 and ATC-11) are held back until their fixes land and then return as regular scenarios. ATC-4, ATC-5, ATC-10 (admin-tools-command#54) and AUTH-8 (auth-command#60) are fixed in v4.13.2 and their scenarios are regular.
 - No `@le` or `@remote` scenarios: nothing here needs public DNS or backups.
 
 ## Product bugs
 
-The suspected bugs found while writing this suite were verified against `upstream/develop` and recorded in `/root/workspace/issues.md` (section "admin-tools-command"): ATC-1 to ATC-4 have `@known-bug` scenarios, ATC-5 and ATC-10 have regular ones since their fixes; ATC-6 to ATC-9 (leftover `docker-compose-admin.yml`, the constructor `define()`, the `UpdateConfigWithEnv` skip flag, `re_enable_admin_tools` ignoring custom compose files) are not tested.
+The suspected bugs found while writing this suite were verified against `upstream/develop` and recorded in `/root/workspace/issues.md` (section "admin-tools-command"): ATC-4, ATC-5 and ATC-10 have regular scenarios since their fixes, ATC-1 to ATC-3 and ATC-11 get theirs back with their fixes; ATC-6 to ATC-9 (leftover `docker-compose-admin.yml`, the constructor `define()`, the `UpdateConfigWithEnv` skip flag, `re_enable_admin_tools` ignoring custom compose files) are not tested.
 
 ## Sites and runtime
 
-Sites are `bh-admin-tools-command-<n>.test` (n = 1–21, plus the alias `bh-admin-tools-command-13-alias.test`, `bh-admin-tools-command-17-alias.test` and the wildcard alias `*.bh-admin-tools-command-21-wild.test`). A site is created on first use in a feature (`Given the site … exists, created with …`) and shared by the feature's scenarios; `@AfterFeature` deletes only sites with the `bh-admin-tools-command-` prefix. `admin-tools are enabled/disabled on …` converge the state (DB flag and container mounts) so scenarios stay independent.
+Sites are `bh-admin-tools-command-<n>.test` (n = 1–21, plus the alias `bh-admin-tools-command-13-alias.test` and the wildcard alias `*.bh-admin-tools-command-21-wild.test`). A site is created on first use in a feature (`Given the site … exists, created with …`) and shared by the feature's scenarios; `@AfterFeature` deletes only sites with the `bh-admin-tools-command-` prefix. `admin-tools are enabled/disabled on …` converge the state (DB flag and container mounts) so scenarios stay independent.
 
 Estimated runtime: about 20–25 minutes for the whole suite (19 php sites and 1 WordPress site at ~20–40 s each to create and delete, ~40 enable/disable runs at ~10 s, HTTP polling), plus 1–2 minutes for the `@network` fresh install.
 

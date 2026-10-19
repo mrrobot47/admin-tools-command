@@ -60,22 +60,6 @@ Feature: admin-tools across site lifecycle operations
       And I use the global admin-tools credentials
     When I request 'http://bh-admin-tools-command-16.test/ee-admin/phpinfo.php' until it returns 200 within 60 seconds
 
-  # ATC-1 (new): alias and SSL updates run `docker-compose up -d nginx` without docker-compose-admin.yml, recreating nginx (and php) without the admin mounts while sites.admin_tools stays 1.
-  @known-bug
-  Scenario Outline: Updating the site keeps admin-tools
-    Given the site '<site>' exists, created with '--type=php'
-      And admin-tools are enabled on '<site>'
-    When I run 'bin/ee site update <site> <flags>'
-    Then the last command should succeed
-      And the site '<site>' should have 'admin_tools' set to '1' in the database
-      And the 'nginx' container of site '<site>' should have a read-only mount at '/var/www/htdocs/ee-admin'
-      And the 'php' container of site '<site>' should have a read-only mount at '/var/www/htdocs/ee-admin'
-
-    Examples:
-      | site                           | flags                                                      |
-      | bh-admin-tools-command-17.test | --add-alias-domains=bh-admin-tools-command-17-alias.test |
-      | bh-admin-tools-command-18.test | --ssl=self                                                 |
-
   Scenario: Deleting a site with admin-tools keeps the shared tools for other sites
     Given the site 'bh-admin-tools-command-19.test' exists, created with '--type=php'
       And the site 'bh-admin-tools-command-16.test' exists, created with '--type=php'

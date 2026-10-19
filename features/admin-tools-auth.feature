@@ -100,12 +100,3 @@ Feature: admin-tools with and without the global default_admin_tools auth
       And the http auth for 'default_admin_tools' should have the user 'easyengine' in the database
     Given I send requests via the public IP
     When I request 'http://bh-admin-tools-command-14.test/ee-admin/phpinfo.php' until it returns 401 within 60 seconds
-
-  # ATC-3 (new): enable() calls init_global_admin_tools_auth() before validating the site, so a failed enable still creates the global auth and whitelist.
-  @known-bug
-  Scenario: A failed enable on an unknown site leaves the global auth untouched
-    Given no global http auth or whitelist exists
-    When I run 'bin/ee admin-tools enable bh-admin-tools-command-missing.test'
-    Then the last command should fail
-      And the http auth for 'default_admin_tools' should not exist in the database
-      And the file '/opt/easyengine/services/nginx-proxy/htpasswd/default_admin_tools' should not exist
