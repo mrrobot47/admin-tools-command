@@ -15,7 +15,7 @@ Feature: Enable admin-tools on a site
       Success: admin-tools enabled for bh-admin-tools-command-4.test site.
       """
       And the site 'bh-admin-tools-command-4.test' should have 'admin_tools' set to '1' in the database
-      And the http auth for 'default_admin_tools' should exist in the database
+      And the global admin-tools auth should exist
 
   Scenario: Enabling writes docker-compose-admin.yml with read-only mounts and site env
     Given the site 'bh-admin-tools-command-4.test' exists, created with '--type=php'

@@ -118,9 +118,11 @@ Feature: admin-tools over HTTP
       And I use the global admin-tools credentials
     When I request 'http://bh-admin-tools-command-10.test/ee-admin/phpinfo.php' until it returns 200 within 60 seconds
     Then the response body should contain 'PHP Version'
+      And I remember the response body
     When I request 'http://bh-admin-tools-command-10.test/ee-admin/phpinfo.php'
     Then the response code should be 200
       And the response header 'X-SRCache-Fetch-Status' should not contain 'HIT'
+      And the response body should differ from the remembered one
 
   Scenario: Tools are protected and served over HTTPS
     Given the site 'bh-admin-tools-command-11.test' exists, created with '--type=php --ssl=self'
@@ -138,8 +140,10 @@ Feature: admin-tools over HTTP
     Then the response code should be 301
       And the response header 'Location' should contain 'https://bh-admin-tools-command-11.test/ee-admin/phpinfo.php'
 
+  # A global `default` auth would also be in the site's htpasswd, so this needs the dedicated admin-tools auth.
   Scenario: Site http auth does not grant access to /ee-admin/
     Given the site 'bh-admin-tools-command-12.test' exists, created with '--type=php'
+      And the http auth for 'default_admin_tools' should exist in the database
       And admin-tools are enabled on 'bh-admin-tools-command-12.test'
       And I send requests via the public IP
       And I use the global admin-tools credentials
@@ -173,3 +177,19 @@ Feature: admin-tools over HTTP
     When I request 'http://bh-admin-tools-command-13-alias.test/ee-admin/' until it returns 200 within 60 seconds
     Then the response body should contain '<a href="pra">pra</a>'
       And the response body should not contain 'Warning'
+
+  Scenario: The index lists MailHog only while it is enabled on the site
+    Given the site 'bh-admin-tools-command-20.test' exists, created with '--type=php'
+      And admin-tools are enabled on 'bh-admin-tools-command-20.test'
+      And I send requests via the public IP
+      And I use the global admin-tools credentials
+    When I run 'bin/ee mailhog enable bh-admin-tools-command-20.test --force'
+    Then the last command should succeed
+      And the site 'bh-admin-tools-command-20.test' should have 'mailhog_enabled' set to '1' in the database
+    When I request 'http://bh-admin-tools-command-20.test/ee-admin/' until it returns 200 within 60 seconds
+    Then the response body should contain '<a href="mailhog">mailhog</a>'
+    When I run 'bin/ee mailhog disable bh-admin-tools-command-20.test'
+    Then the last command should succeed
+    When I request 'http://bh-admin-tools-command-20.test/ee-admin/'
+    Then the response code should be 200
+      And the response body should not contain '<a href="mailhog">'

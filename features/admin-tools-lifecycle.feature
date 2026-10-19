@@ -86,7 +86,7 @@ Feature: admin-tools across site lifecycle operations
       And the site 'bh-admin-tools-command-19.test' should not exist
       And the file '/opt/easyengine/sites/bh-admin-tools-command-19.test/docker-compose-admin.yml' should not exist
       And the file '/opt/easyengine/admin-tools/index.php' should exist
-      And the http auth for 'default_admin_tools' should exist in the database
+      And the global admin-tools auth should exist
     Given I send requests via the public IP
       And I use the global admin-tools credentials
     When I request 'http://bh-admin-tools-command-16.test/ee-admin/phpinfo.php' until it returns 200 within 60 seconds

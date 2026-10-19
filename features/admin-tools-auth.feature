@@ -33,6 +33,7 @@ Feature: admin-tools with and without the global default_admin_tools auth
 
   Scenario: Enabling keeps an existing admin-tools auth
     Given admin-tools are disabled on 'bh-admin-tools-command-14.test'
+      And the http auth for 'default_admin_tools' should exist in the database
     When I run 'bin/ee admin-tools enable bh-admin-tools-command-14.test'
     Then the last command should succeed
       And STDOUT of the last command should contain:

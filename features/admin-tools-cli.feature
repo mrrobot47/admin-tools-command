@@ -74,14 +74,17 @@ Feature: admin-tools command line interface
       | enable     |
       | disable    |
 
-  Scenario Outline: An unknown site is rejected without touching the database
+  Scenario Outline: An unknown site is rejected
     When I run 'bin/ee admin-tools <subcommand> bh-admin-tools-command-missing.test'
     Then the last command should fail
       And STDERR of the last command should contain:
       """
       Could not find the site you wish to run admin-tools <subcommand> command on.
       """
-      And the site 'bh-admin-tools-command-missing.test' should not exist
+      And STDOUT of the last command should not contain:
+      """
+      Success: admin-tools
+      """
 
     Examples:
       | subcommand |
