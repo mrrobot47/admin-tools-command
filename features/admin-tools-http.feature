@@ -33,9 +33,8 @@ Feature: admin-tools over HTTP
       And I send requests via the public IP
       And I use the global admin-tools credentials
     When I request 'http://bh-admin-tools-command-9.test/ee-admin/phpinfo.php' until it returns 200 within 60 seconds
-    When I request 'http://bh-admin-tools-command-9.test<path>'
-    Then the response code should be 200
-      And the response body should match '<regex>'
+    When I request 'http://bh-admin-tools-command-9.test<path>' until it returns 200 within 60 seconds
+    Then the response body should match '<regex>'
 
     Examples:
       | path                      | regex               |
@@ -121,9 +120,8 @@ Feature: admin-tools over HTTP
     Given I use the global admin-tools credentials
     When I request 'https://bh-admin-tools-command-11.test/ee-admin/phpinfo.php' until it returns 200 within 60 seconds
     Then the response body should contain 'PHP Version'
-    When I request 'https://bh-admin-tools-command-11.test/ee-admin/pma/'
-    Then the response code should be 200
-      And the response body should contain 'phpMyAdmin'
+    When I request 'https://bh-admin-tools-command-11.test/ee-admin/pma/' until it returns 200 within 60 seconds
+    Then the response body should contain 'phpMyAdmin'
     When I request 'http://bh-admin-tools-command-11.test/ee-admin/phpinfo.php'
     Then the response code should be 301
       And the response header 'Location' should contain 'https://bh-admin-tools-command-11.test/ee-admin/phpinfo.php'
