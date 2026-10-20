@@ -1032,6 +1032,37 @@ class FeatureContext implements Context
 	}
 
 	/**
+	 * Polls until the response carries the header text, e.g. the admin-tools realm, which the proxy only serves
+	 * once it has regenerated the /ee-admin/ location; until then the site's own auth answers with the same code.
+	 *
+	 * @When I request :url until it returns :code with a :name header containing :text within :seconds seconds
+	 */
+	public function iRequestUntilItReturnsWithHeaderWithinSeconds( $url, $code, $name, $text, $seconds ) {
+		$deadline = time() + (int) $seconds;
+		do {
+			$this->http_request( $url );
+			if ( (int) $code === $this->response['code'] && $this->response_header_contains( $name, $text ) ) {
+				return;
+			}
+			sleep( 2 );
+		} while ( time() < $deadline );
+		throw new Exception( "Did not get HTTP $code with a $name header containing '$text' within $seconds seconds.\n" . $this->describe_response() );
+	}
+
+	private function response_header_contains( $name, $text ) {
+		if ( $this->response ) {
+			foreach ( explode( "\n", $this->response['headers'] ) as $line ) {
+				$pair = explode( ':', $line, 2 );
+				if ( 2 === count( $pair ) && 0 === strcasecmp( trim( $pair[0] ), $name ) && false !== strpos( $pair[1], $text ) ) {
+					return true;
+				}
+			}
+		}
+
+		return false;
+	}
+
+	/**
 	 * @Then the response code should be :code
 	 */
 	public function theResponseCodeShouldBe( $code ) {
@@ -1104,17 +1135,7 @@ class FeatureContext implements Context
 	 * @Then the response header :name should contain :text
 	 */
 	public function theResponseHeaderShouldContain( $name, $text ) {
-		$found = false;
-		if ( $this->response ) {
-			foreach ( explode( "\n", $this->response['headers'] ) as $line ) {
-				$pair = explode( ':', $line, 2 );
-				if ( 2 === count( $pair ) && 0 === strcasecmp( trim( $pair[0] ), $name ) && false !== strpos( $pair[1], $text ) ) {
-					$found = true;
-					break;
-				}
-			}
-		}
-		if ( ! $found ) {
+		if ( ! $this->response_header_contains( $name, $text ) ) {
 			throw new Exception( "No $name header containing: $text\n" . $this->describe_response() );
 		}
 	}

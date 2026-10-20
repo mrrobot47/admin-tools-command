@@ -61,11 +61,9 @@ Feature: Installation of the shared admin-tools
     Given I send requests via the public IP
       And I use the global admin-tools credentials
     When I request 'http://bh-admin-tools-command-15.test/ee-admin/phpinfo.php' until it returns 200 within 60 seconds
-    When I request 'http://bh-admin-tools-command-15.test/ee-admin/pma/'
-    Then the response code should be 200
+    When I request 'http://bh-admin-tools-command-15.test/ee-admin/pma/' until it returns 200 within 60 seconds
       And the response body should contain 'phpMyAdmin'
-    When I request 'http://bh-admin-tools-command-15.test/ee-admin/opcache-gui.php'
-    Then the response code should be 200
+    When I request 'http://bh-admin-tools-command-15.test/ee-admin/opcache-gui.php' until it returns 200 within 60 seconds
 
   @destructive
   Scenario: Only a missing tool is reinstalled

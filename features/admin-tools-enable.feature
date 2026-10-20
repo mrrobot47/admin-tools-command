@@ -157,8 +157,7 @@ Feature: Enable admin-tools on a site
       And I use the global admin-tools credentials
     When I request 'http://bh-admin-tools-command-6.test/ee-admin/phpinfo.php' until it returns 200 within 60 seconds
     Then the response body should contain 'PHP Version'
-    When I request 'http://bh-admin-tools-command-6.test/ee-admin/pma/'
-    Then the response code should be 200
+    When I request 'http://bh-admin-tools-command-6.test/ee-admin/pma/' until it returns 200 within 60 seconds
       And the response body should contain 'phpMyAdmin'
 
   Scenario: Enable admin-tools on a php site with a public dir

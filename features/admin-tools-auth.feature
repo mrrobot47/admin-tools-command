@@ -21,8 +21,7 @@ Feature: admin-tools with and without the global default_admin_tools auth
       And the file '/opt/easyengine/services/nginx-proxy/htpasswd/default_admin_tools' should contain 'easyengine:'
       And the file '/opt/easyengine/services/nginx-proxy/vhost.d/default_acl' should contain 'allow {frontend_subnet};'
     Given I send requests via the public IP
-    When I request 'http://bh-admin-tools-command-14.test/ee-admin/phpinfo.php' until it returns 401 within 60 seconds
-    Then the response header 'WWW-Authenticate' should contain 'Admin Tools'
+    When I request 'http://bh-admin-tools-command-14.test/ee-admin/phpinfo.php' until it returns 401 with a 'WWW-Authenticate' header containing 'Admin Tools' within 60 seconds
     Given I use the global admin-tools credentials
     When I request 'http://bh-admin-tools-command-14.test/ee-admin/phpinfo.php' until it returns 200 within 60 seconds
     Then the response body should contain 'PHP Version'
@@ -62,8 +61,7 @@ Feature: admin-tools with and without the global default_admin_tools auth
       And the http auth for 'default_admin_tools' should not exist in the database
       And the file '/opt/easyengine/services/nginx-proxy/htpasswd/default_admin_tools' should not exist
     Given I send requests via the public IP
-    When I request 'http://bh-admin-tools-command-14.test/ee-admin/phpinfo.php' until it returns 401 within 60 seconds
-    Then the response header 'WWW-Authenticate' should contain 'Admin Tools'
+    When I request 'http://bh-admin-tools-command-14.test/ee-admin/phpinfo.php' until it returns 401 with a 'WWW-Authenticate' header containing 'Admin Tools' within 60 seconds
     Given I use basic auth with user 'bh-atc-global' and password 'bh-atc-global-pass'
     When I request 'http://bh-admin-tools-command-14.test/ee-admin/phpinfo.php' until it returns 200 within 60 seconds
     Then the response body should contain 'PHP Version'
