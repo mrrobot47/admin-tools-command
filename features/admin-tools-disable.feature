@@ -46,17 +46,20 @@ Feature: Disable admin-tools on a site
       And the site 'bh-admin-tools-command-8.test' should have 'admin_tools' set to '0' in the database
 
   Scenario: Force-disabling a site that never had admin-tools succeeds
-    Given admin-tools are disabled on 'bh-admin-tools-command-8.test'
-    When I run 'bin/ee admin-tools disable bh-admin-tools-command-8.test --force'
+    # A site of its own: the shared one was enabled by earlier scenarios and keeps docker-compose-admin.yml.
+    Given the site 'bh-admin-tools-command-23.test' exists, created with '--type=php'
+    Then the site 'bh-admin-tools-command-23.test' should have 'admin_tools' set to '0' in the database
+      And the file '/opt/easyengine/sites/bh-admin-tools-command-23.test/docker-compose-admin.yml' should not exist
+    When I run 'bin/ee admin-tools disable bh-admin-tools-command-23.test --force'
     Then the last command should succeed
       And STDOUT of the last command should contain:
       """
-      Success: admin-tools disabled for bh-admin-tools-command-8.test site.
+      Success: admin-tools disabled for bh-admin-tools-command-23.test site.
       """
-      And the site 'bh-admin-tools-command-8.test' should have 'admin_tools' set to '0' in the database
-      And the 'nginx' container of site 'bh-admin-tools-command-8.test' should be running
-      And the 'php' container of site 'bh-admin-tools-command-8.test' should be running
-      And the 'nginx' container of site 'bh-admin-tools-command-8.test' should not have a mount at '/var/www/htdocs/ee-admin'
+      And the site 'bh-admin-tools-command-23.test' should have 'admin_tools' set to '0' in the database
+      And the 'nginx' container of site 'bh-admin-tools-command-23.test' should be running
+      And the 'php' container of site 'bh-admin-tools-command-23.test' should be running
+      And the 'nginx' container of site 'bh-admin-tools-command-23.test' should not have a mount at '/var/www/htdocs/ee-admin'
 
   Scenario: Enable, disable and enable again
     Given admin-tools are disabled on 'bh-admin-tools-command-8.test'

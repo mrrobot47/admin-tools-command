@@ -98,9 +98,9 @@ The suspected bugs found while writing this suite were verified against `develop
 
 ## Sites and runtime
 
-Sites are `bh-admin-tools-command-<n>.test` (n = 1–22, plus the alias `bh-admin-tools-command-13-alias.test` and the wildcard alias `*.bh-admin-tools-command-21-wild.test`). A site is created on first use in a feature (`Given the site … exists, created with …`) and shared by the feature's scenarios; `@AfterFeature` deletes only sites with the `bh-admin-tools-command-` prefix. `admin-tools are enabled/disabled on …` converge the state (DB flag and container mounts) so scenarios stay independent.
+Sites are `bh-admin-tools-command-<n>.test` (n = 1–23, plus the alias `bh-admin-tools-command-13-alias.test` and the wildcard alias `*.bh-admin-tools-command-21-wild.test`). A site is created on first use in a feature (`Given the site … exists, created with …`) and shared by the feature's scenarios; `@AfterFeature` deletes only sites with the `bh-admin-tools-command-` prefix. `admin-tools are enabled/disabled on …` converge the state (DB flag and container mounts) so scenarios stay independent.
 
-Estimated runtime: about 20–25 minutes for the whole suite (19 php sites and 2 WordPress sites at ~20–40 s each to create and delete, ~40 enable/disable runs at ~10 s, HTTP polling), plus 1–2 minutes for the `@network` fresh install.
+Estimated runtime: about 20–25 minutes for the whole suite (20 php sites and 2 WordPress sites at ~20–40 s each to create and delete, ~40 enable/disable runs at ~10 s, HTTP polling), plus 1–2 minutes for the `@network` fresh install.
 
 ## Changes to the copied site-command context
 
