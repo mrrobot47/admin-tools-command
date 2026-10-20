@@ -40,7 +40,7 @@ Feature: Enable admin-tools on a site
       | nginx   |
       | php     |
 
-  # ATC-10: the whole EE database used to be mounted into the site's php container.
+  # Fixed in v4.13.2 (EasyEngine/admin-tools-command#54): the whole EE database used to be mounted into the site's php container.
   Scenario: The site's php container has no access to the EasyEngine DB, only to its own admin-tools flags
     Given the site 'bh-admin-tools-command-4.test' exists, created with '--type=php'
       And admin-tools are enabled on 'bh-admin-tools-command-4.test'

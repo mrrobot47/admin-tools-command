@@ -17,7 +17,7 @@ Suite for `ee admin-tools` (package `easyengine/admin-tools-command`, based on `
 | `<site-name>` omitted outside a site dir | cli: "A site name is required outside a site directory" |
 | wrong `<site-name>` inside a site dir (suggestion) | cli: "A wrong site name inside a site directory suggests the right one" |
 | `<site-name>` with trailing slash | cli: "A trailing slash on the site name is accepted" |
-| `<site-name>` as `http://site/` | not covered yet: ATC-2 (its scenario comes back with the fix) |
+| `<site-name>` as `http://site/` | not covered yet: `auto_site_name()` returns the raw argument, so the site is not found (its scenario comes back with the fix) |
 | unknown site | cli: "An unknown site is rejected" |
 | disabled site (with and without `--force`) | cli: "A disabled site is rejected"; lifecycle: "Disabling and enabling the site re-enables admin-tools" |
 | unknown flag / extra positional | cli: "Unknown flags are rejected", "More than one site name is rejected" |
@@ -37,14 +37,14 @@ Suite for `ee admin-tools` (package `easyengine/admin-tools-command`, based on `
 | `sites.admin_tools` set to 1 / 0 | enable, disable, cli, install, lifecycle |
 | `docker-compose-admin.yml` content (ro tool mount, ro per-site flags dir, no EE DB, REDIS_HOST, DB_HOST) | enable: "Enabling writes docker-compose-admin.yml ...", "The php container gets the site's redis and db hosts" |
 | nginx and php containers get a read-only mount of `/opt/easyengine/admin-tools` and no EE DB mount | enable: "Enabling mounts the tools read-only into nginx and php, and never the EE database" |
-| php container: no EE DB or `/opt/easyengine`, only its own read-only flags dir (`config/admin-tools/site.json`); flags follow page cache and mailhog | enable: "The site's php container has no access to the EasyEngine DB, only to its own admin-tools flags", "The flags file follows the site's page cache"; http: "The index lists MailHog only while it is enabled on the site" (ATC-10, fixed on `fix/no-db-mount-in-site-containers`) |
+| php container: no EE DB or `/opt/easyengine`, only its own read-only flags dir (`config/admin-tools/site.json`); flags follow page cache and mailhog | enable: "The site's php container has no access to the EasyEngine DB, only to its own admin-tools flags", "The flags file follows the site's page cache"; http: "The index lists MailHog only while it is enabled on the site" (fixed in v4.13.2 by EasyEngine/admin-tools-command#54) |
 | compose `config_files` label includes the admin file | same outline |
 | disable drops the mounts from nginx and php | disable: "Disable admin-tools after enabling them" |
 | `init_global_admin_tools_auth()` reuses existing admin-tools auth | enable: "Enable admin-tools on a php site"; auth: "Enabling keeps an existing admin-tools auth" (needs a `default_admin_tools` auth, asserted as a precondition) |
 | `init_global_admin_tools_auth()` creates auth `easyengine`, htpasswd file and whitelist (the frontend subnet, `10.1.0.0/16` unless the host routes it) | auth: "Enabling creates the admin-tools auth and whitelist when none exist", "Re-enabling with --force restores the missing admin-tools auth" |
 | global `default` auth used instead of admin-tools auth | auth: "A global auth protects /ee-admin/ when there is no admin-tools auth" |
-| `ee auth create global` interplay | auth: "Creating a global auth keeps the admin-tools auth" (regression check, AUTH-8 fixed in v4.13.2) |
-| init runs before site validation | not covered yet: ATC-3 (its scenario comes back with the fix) |
+| `ee auth create global` interplay | auth: "Creating a global auth keeps the admin-tools auth" (regression check, fixed in v4.13.2 by EasyEngine/auth-command#60) |
+| init runs before site validation | not covered yet: a failed enable still creates the global admin-tools auth and whitelist (its scenario comes back with the fix) |
 | install: tools dir created, "Installing admin-tools..." | install: "A fresh install downloads and configures every tool" (`@network`) |
 | install_index (DB path, scan dir) | enable: "The shared tools are installed ..."; install: fresh install, "A missing index is regenerated from the template" |
 | install_phpinfo | install: "Only a missing tool is reinstalled" |
@@ -56,7 +56,7 @@ Suite for `ee admin-tools` (package `easyengine/admin-tools-command`, based on `
 | ee-tools.json with a non-json extension | not covered: `ADMIN_TOOLS_FILE` is a constant defined before the command loads |
 | pra fallback when the GitHub API fails, fixed `version` | not covered: needs a network failure or a code change |
 | HTTP: `/ee-admin/`, `index.php`, `phpinfo.php`, `opcache-gui.php`, `pma/`, `nginx_status`, `status`, `ping` with credentials | http: "Each tool is served with the admin-tools credentials" |
-| HTTP: `pra/` (listed and served only with fullpage cache) | http: "The index lists the tools but not phpRedisAdmin on a site without cache"; serving `pra/` is not covered yet: ATC-11 since phpRedisAdmin v1.27.0 (its scenario comes back with the fix) |
+| HTTP: `pra/` (listed and served only with fullpage cache) | http: "The index lists the tools but not phpRedisAdmin on a site without cache"; serving `pra/` is not covered yet: phpRedisAdmin v1.27.0 answers 403 without a configured login (its scenario comes back with the fix) |
 | HTTP: 401 without / with wrong credentials, realm "Admin Tools" | http: "Each tool requires the admin-tools credentials from outside the whitelist" |
 | HTTP: whitelisted client (127.0.0.1) without credentials | http: "Whitelisted clients reach the tools without credentials"; auth: first scenario |
 | HTTP: `/ee-admin/` protected and 404 before enabling; status pages available without enabling | http: "/ee-admin/ is protected even before admin-tools are enabled", "Status pages are served by the site config ..." |
@@ -64,17 +64,17 @@ Suite for `ee admin-tools` (package `easyengine/admin-tools-command`, based on `
 | HTTP: HTTPS (self-signed) + HTTP redirect | http: "Tools are protected and served over HTTPS" |
 | HTTP: site auth does not unlock `/ee-admin/`, admin creds do not unlock the site | http: "Site http auth does not grant access to /ee-admin/" |
 | HTTP: tools bypass the redis page cache | http: "Tools on a site with cache bypass the redis page cache" (two phpinfo responses must differ, since phpinfo prints `REQUEST_TIME_FLOAT`) |
-| HTTP: index on an alias domain | http: "The index on an alias domain lists the same tools ..." (ATC-5, fixed on `fix/escape-index-sql`) |
-| HTTP: crafted Host under a wildcard alias (SQL injection) | http: "A crafted Host header under a wildcard alias does not change the index lookup" (ATC-5, fixed on `fix/escape-index-sql`) |
+| HTTP: index on an alias domain | http: "The index on an alias domain lists the same tools ..." (fixed in v4.13.2 by EasyEngine/admin-tools-command#54) |
+| HTTP: crafted Host under a wildcard alias (SQL injection) | http: "A crafted Host header under a wildcard alias does not change the index lookup" (fixed in v4.13.2 by EasyEngine/admin-tools-command#54) |
 | HTTP: no global htpasswd at all exposes the tools | auth: "Without any global auth file the tools are served to anyone" (documents behaviour) |
 | `ee site info` shows / hides "Access admin-tools" | enable: "Site info shows the admin-tools URL once enabled", "Site info does not show admin-tools when disabled" |
 | `ee site disable` + `enable` re-enables admin-tools (class-ee-site `enable()`) | lifecycle: "Disabling and enabling the site re-enables admin-tools", "Enabling a site without admin-tools does not enable them" |
 | `ee site refresh` / `restart` keep the mounts | lifecycle: "Refreshing the site keeps admin-tools", "Restarting the site keeps admin-tools" |
-| `ee site update --add-alias-domains` / `--ssl=self` keep the mounts | not covered yet: ATC-1 (its scenario comes back with the fix) |
-| `ee site update --delete-alias-domains` / `--ssl=off` | not covered separately: same `docker_compose_up(…, ['nginx'])` path as the rows above (ATC-1) |
+| `ee site update --add-alias-domains` / `--ssl=self` keep the mounts | not covered yet: the regenerated compose drops `docker-compose-admin.yml`, so the admin-tools mounts are lost (its scenario comes back with the fix) |
+| `ee site update --delete-alias-domains` / `--ssl=off` | not covered separately: same `docker_compose_up(…, ['nginx'])` path as the rows above |
 | `ee site update --php=<ver>` keeps admin-tools (runs `enable --force`, which re-enables them) | not covered: pulls another php image (~200 MB) |
 | site delete keeps the shared tools and auth | lifecycle: "Deleting a site with admin-tools keeps the shared tools for other sites" |
-| disable on a site without php | cli: "Force-disabling on an html site fails instead of reporting success" (regression check, ATC-4 fixed in v4.13.2) |
+| disable on a site without php | cli: "Force-disabling on an html site fails instead of reporting success" (regression check, fixed in v4.13.2 by EasyEngine/admin-tools-command#54) |
 | enable failure path (`docker-compose up` fails) | not covered: needs a broken compose setup |
 | `ee site clone` of a site with admin-tools | not covered: belongs to site-command; the cloner runs the installed `ee` binary, not `bin/ee` |
 | mailhog link in the index | http: "The index lists MailHog only while it is enabled on the site" |
@@ -88,12 +88,12 @@ Estimated coverage: about 88% of the inventory (57 of 65 items); the gaps are li
 - `@destructive` (13 scenario rows): change server-wide state. `admin-tools-auth.feature` snapshots the global auth rows (`auth_users` for `default`/`default_admin_tools`, `auth_ips` for `default`) and every `htpasswd/*` and `vhost.d/*_acl` file (site files embed the global users), and restores them after each scenario, then regenerates and reloads nginx-proxy. While a scenario runs, other sites on the server may be behind a global auth, lose the global whitelist, or (with no global htpasswd at all) serve `/ee-admin/` without auth on the public IP. `admin-tools-install.feature` moves `/opt/easyengine/admin-tools` (or one file of it) aside, and overwrites the checkout's `ee-tools.json`, putting them back afterwards.
 - Failure safety: the auth snapshot is also written to `/var/tmp/behat-admin-tools-command-auth-snapshot.json` (0600, it holds the plain-text auth passwords) before anything is changed, and deleted only after a complete restore. The DB rows, the files and the proxy reload are restored independently, so one failure does not skip the others; a failed restore keeps the file, and the next scenario's snapshot step or the next run's `@BeforeSuite` restores it first (a run killed mid-scenario is recovered the same way). Moved-aside paths use a fixed `<path>.behat-aside` name: a leftover from an interrupted run makes the step fail instead of being buried, and the restore never deletes the new path unless the backup exists. Site creation in the Background runs before the snapshot, so a global admin-tools auth that `ee site create` adds on a server without one is kept.
 - `@network` (1): downloads phpMyAdmin, phpRedisAdmin, predis and opcache-gui.
-- No `@known-bug` scenarios ship here: the 5 scenario rows written for open bugs (ATC-1 with 2 rows, ATC-2, ATC-3 and ATC-11) are held back until their fixes land and then return as regular scenarios. ATC-4, ATC-5, ATC-10 (admin-tools-command#54) and AUTH-8 (auth-command#60) are fixed in v4.13.2 and their scenarios are regular.
+- No `@known-bug` scenarios ship here: the 5 scenario rows written for open bugs (alias and SSL updates losing the mounts with 2 rows, `http://site/` names, the auth created by a failed enable, and phpRedisAdmin v1.27.0's 403) are held back until their fixes land and then return as regular scenarios. The bugs fixed in v4.13.2 by EasyEngine/admin-tools-command#54 and EasyEngine/auth-command#60 have regular scenarios.
 - No `@le` or `@remote` scenarios: nothing here needs public DNS or backups.
 
 ## Product bugs
 
-The suspected bugs found while writing this suite were verified against `upstream/develop` and recorded in `/root/workspace/issues.md` (section "admin-tools-command"): ATC-4, ATC-5 and ATC-10 have regular scenarios since their fixes, ATC-1 to ATC-3 and ATC-11 get theirs back with their fixes; ATC-6 to ATC-9 (leftover `docker-compose-admin.yml`, the constructor `define()`, the `UpdateConfigWithEnv` skip flag, `re_enable_admin_tools` ignoring custom compose files) are not tested.
+The suspected bugs found while writing this suite were verified against `develop`: the ones fixed by EasyEngine/admin-tools-command#54 have regular scenarios, the four still open (see "Tags") get theirs back with their fixes; these are not tested (leftover `docker-compose-admin.yml`, the constructor `define()`, the `UpdateConfigWithEnv` skip flag, `re_enable_admin_tools` ignoring custom compose files).
 
 ## Sites and runtime
 

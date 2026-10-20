@@ -156,7 +156,7 @@ Feature: admin-tools over HTTP
     When I run 'bin/ee auth delete bh-admin-tools-command-12.test --user=bh-site-user'
     Then the last command should succeed
 
-  # ATC-5: index.php looked the site up by exact HTTP_HOST, so on an alias domain it found no row and dropped the pra (and mailhog) links.
+  # Fixed in v4.13.2 (EasyEngine/admin-tools-command#54): index.php looked the site up by exact HTTP_HOST, so on an alias domain it found no row and dropped the pra (and mailhog) links.
   Scenario: The index on an alias domain lists the same tools as on the main domain
     Given the site 'bh-admin-tools-command-13.test' exists, created with '--type=php --cache --alias-domains=bh-admin-tools-command-13-alias.test'
       And admin-tools are enabled on 'bh-admin-tools-command-13.test'
@@ -168,7 +168,7 @@ Feature: admin-tools over HTTP
     Then the response body should contain '<a href="pra">pra</a>'
       And the response body should not contain 'Warning'
 
-  # ATC-5: index.php also concatenated HTTP_HOST into its SQL. A Host under a wildcard alias reaches the site with quotes
+  # Fixed in v4.13.2 (EasyEngine/admin-tools-command#54): index.php also concatenated HTTP_HOST into its SQL. A Host under a wildcard alias reaches the site with quotes
   # and parentheses intact and whitelisted clients need no credentials, so it was a boolean oracle over the EE database.
   # No `>` in the payloads: nginx 1.29+ rejects it in Host with a 400 before the request reaches the site.
   Scenario: A crafted Host header under a wildcard alias does not change the index lookup

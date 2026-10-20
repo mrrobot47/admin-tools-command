@@ -68,7 +68,7 @@ Feature: admin-tools with and without the global default_admin_tools auth
     When I request 'http://bh-admin-tools-command-14.test/ee-admin/phpinfo.php' until it returns 200 within 60 seconds
     Then the response body should contain 'PHP Version'
 
-  # AUTH-8 (fixed in v4.13.2), regression check: `ee auth create global` renames the admin-tools auth row to `default`, so the admin-tools auth disappears.
+  # Fixed in v4.13.2 (EasyEngine/auth-command#60), regression check: `ee auth create global` renames the admin-tools auth row to `default`, so the admin-tools auth disappears.
   Scenario: Creating a global auth keeps the admin-tools auth
     Given admin-tools are enabled on 'bh-admin-tools-command-14.test'
     When I run 'bin/ee auth create global --user=bh-atc-global --pass=bh-atc-global-pass'
