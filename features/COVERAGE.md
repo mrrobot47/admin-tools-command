@@ -31,7 +31,7 @@ Suite for `ee admin-tools` (package `easyengine/admin-tools-command`, based on `
 | Item | Covered by |
 |---|---|
 | Site types: php supported | enable, disable, http, auth, install, lifecycle features |
-| Site types: wp supported | enable: "Enable admin-tools on a WordPress site" |
+| Site types: wp supported | enable: "Enable admin-tools on a WordPress site"; wordpress feature |
 | Site types: html rejected (`config --services` lacks php) | cli: "An html site does not support admin-tools" |
 | php site with `--public-dir` | enable: "Enable admin-tools on a php site with a public dir" |
 | `sites.admin_tools` set to 1 / 0 | enable, disable, cli, install, lifecycle |
@@ -60,7 +60,8 @@ Suite for `ee admin-tools` (package `easyengine/admin-tools-command`, based on `
 | HTTP: 401 without / with wrong credentials, realm "Admin Tools" | http: "Each tool requires the admin-tools credentials from outside the whitelist" |
 | HTTP: whitelisted client (127.0.0.1) without credentials | http: "Whitelisted clients reach the tools without credentials"; auth: first scenario |
 | HTTP: `/ee-admin/` protected and 404 before enabling; status pages available without enabling | http: "/ee-admin/ is protected even before admin-tools are enabled", "Status pages are served by the site config ..." |
-| HTTP: tools 404 after disable | disable: "Tools are no longer served once disabled, status pages still are" |
+| HTTP: tools 404 after disable | disable: "Tools are no longer served once disabled, status pages still are"; wordpress: "Tools are no longer served on a WordPress site once disabled, status pages still are" |
+| HTTP on a WordPress site: every tool, plus the status pages from site-type-wp's own `main.conf` | wordpress: "Each tool and status page is served on a WordPress site" |
 | HTTP: HTTPS (self-signed) + HTTP redirect | http: "Tools are protected and served over HTTPS" |
 | HTTP: site auth does not unlock `/ee-admin/`, admin creds do not unlock the site | http: "Site http auth does not grant access to /ee-admin/" |
 | HTTP: tools bypass the redis page cache | http: "Tools on a site with cache bypass the redis page cache" (two phpinfo responses must differ, since phpinfo prints `REQUEST_TIME_FLOAT`) |
@@ -81,7 +82,7 @@ Suite for `ee admin-tools` (package `easyengine/admin-tools-command`, based on `
 | pma login against the site DB | not covered: cookie auth needs a token/session flow |
 | Container migrations (update index, config with env, public dir index, pma config) | not covered: migrations only run on upgrades; they need an old-version fixture |
 
-Estimated coverage: about 88% of the inventory (57 of 65 items); the gaps are listed above with reasons.
+Estimated coverage: about 88% of the inventory (58 of 66 items); the gaps are listed above with reasons.
 
 ## Tags
 
@@ -97,9 +98,9 @@ The suspected bugs found while writing this suite were verified against `develop
 
 ## Sites and runtime
 
-Sites are `bh-admin-tools-command-<n>.test` (n = 1–21, plus the alias `bh-admin-tools-command-13-alias.test` and the wildcard alias `*.bh-admin-tools-command-21-wild.test`). A site is created on first use in a feature (`Given the site … exists, created with …`) and shared by the feature's scenarios; `@AfterFeature` deletes only sites with the `bh-admin-tools-command-` prefix. `admin-tools are enabled/disabled on …` converge the state (DB flag and container mounts) so scenarios stay independent.
+Sites are `bh-admin-tools-command-<n>.test` (n = 1–22, plus the alias `bh-admin-tools-command-13-alias.test` and the wildcard alias `*.bh-admin-tools-command-21-wild.test`). A site is created on first use in a feature (`Given the site … exists, created with …`) and shared by the feature's scenarios; `@AfterFeature` deletes only sites with the `bh-admin-tools-command-` prefix. `admin-tools are enabled/disabled on …` converge the state (DB flag and container mounts) so scenarios stay independent.
 
-Estimated runtime: about 20–25 minutes for the whole suite (19 php sites and 1 WordPress site at ~20–40 s each to create and delete, ~40 enable/disable runs at ~10 s, HTTP polling), plus 1–2 minutes for the `@network` fresh install.
+Estimated runtime: about 20–25 minutes for the whole suite (19 php sites and 2 WordPress sites at ~20–40 s each to create and delete, ~40 enable/disable runs at ~10 s, HTTP polling), plus 1–2 minutes for the `@network` fresh install.
 
 ## Changes to the copied site-command context
 
