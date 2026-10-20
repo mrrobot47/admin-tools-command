@@ -1469,9 +1469,18 @@ class FeatureContext implements Context
 	public static function cleanup(AfterFeatureScope $scope)
 	{
 		$result = EE::launch( 'bin/ee site list --format=text', false, true );
-		foreach ( array_filter( array_map( 'trim', explode( "\n", $result->stdout ) ) ) as $site ) {
-			if ( 0 === strpos( $site, self::SITE_PREFIX ) ) {
-				exec( 'bin/ee site delete ' . escapeshellarg( $site ) . ' --yes' );
+		// An empty install exits 1 with "No sites found!"; any other failure must not look like an empty list.
+		$failures = [];
+		if ( 0 !== $result->return_code && false === strpos( $result->stderr, 'No sites found!' ) ) {
+			$failures[] = "Unable to list sites:\n" . $result->stderr;
+		} else {
+			foreach ( array_filter( array_map( 'trim', explode( "\n", $result->stdout ) ) ) as $site ) {
+				if ( 0 === strpos( $site, self::SITE_PREFIX ) ) {
+					$delete = EE::launch( 'bin/ee site delete ' . escapeshellarg( $site ) . ' --yes', false, true );
+					if ( 0 !== $delete->return_code ) {
+						$failures[] = "Unable to delete $site:\n" . $delete->stderr;
+					}
+				}
 			}
 		}
 
@@ -1482,6 +1491,10 @@ class FeatureContext implements Context
 				}
 			}
 			self::$phar_built = false;
+		}
+
+		if ( $failures ) {
+			throw new Exception( implode( "\n", $failures ) );
 		}
 	}
 }
