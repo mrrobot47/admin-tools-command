@@ -1,6 +1,6 @@
 # admin-tools-command Behat coverage
 
-Suite for `ee admin-tools` (package `easyengine/admin-tools-command`, based on `upstream/develop` 5005d1c). Run it like the other package suites: copy `features/` into a core checkout's `features/` and run `vendor/bin/behat` from the core root as root (see `tools/run-behat.sh`).
+Suite for `ee admin-tools` (package `easyengine/admin-tools-command`). Run it like the other package suites: replace a core checkout's `features/` with this package's (`rm -rf features && cp -R <package>/features features`, as the workflow does; copying over it would keep core's own `cli.feature`, whose scenario runs `ee cli self-uninstall --yes`) and run `vendor/bin/behat` from the core root as root.
 
 ## Inventory
 
