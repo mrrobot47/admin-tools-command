@@ -1126,7 +1126,10 @@ class FeatureContext implements Context
 		if ( null === $this->remembered_body ) {
 			throw new Exception( 'No response body has been remembered in this scenario.' );
 		}
-		if ( ! $this->response || $this->response['body'] === $this->remembered_body ) {
+		if ( ! $this->response || 0 === $this->response['code'] || '' !== $this->response['error'] ) {
+			throw new Exception( "No complete HTTP response to compare.\n" . $this->describe_response() );
+		}
+		if ( $this->response['body'] === $this->remembered_body ) {
 			throw new Exception( "Response body is identical to the remembered one (served from a cache?).\n" . $this->describe_response() );
 		}
 	}
@@ -1146,8 +1149,9 @@ class FeatureContext implements Context
 	 * @Then the response header :name should not contain :text
 	 */
 	public function theResponseHeaderShouldNotContain( $name, $text ) {
-		if ( ! $this->response ) {
-			throw new Exception( $this->describe_response() );
+		// Headers of a failed or truncated transfer prove nothing.
+		if ( ! $this->response || 0 === $this->response['code'] || '' !== $this->response['error'] ) {
+			throw new Exception( "No complete HTTP response to check.\n" . $this->describe_response() );
 		}
 		foreach ( explode( "\n", $this->response['headers'] ) as $line ) {
 			$pair = explode( ':', $line, 2 );
