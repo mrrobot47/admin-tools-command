@@ -1023,7 +1023,8 @@ class FeatureContext implements Context
 		$deadline = time() + (int) $seconds;
 		do {
 			$this->http_request( $url );
-			if ( (int) $code === $this->response['code'] ) {
+			// A truncated transfer keeps its status code; retry it like a transport error.
+			if ( (int) $code === $this->response['code'] && '' === $this->response['error'] ) {
 				return;
 			}
 			sleep( 2 );
@@ -1113,8 +1114,9 @@ class FeatureContext implements Context
 	 * @When I remember the response body
 	 */
 	public function iRememberTheResponseBody() {
-		if ( ! $this->response ) {
-			throw new Exception( $this->describe_response() );
+		// An empty body from a failed transfer would make any later body "differ".
+		if ( ! $this->response || 0 === $this->response['code'] || '' !== $this->response['error'] ) {
+			throw new Exception( "No complete HTTP response to remember.\n" . $this->describe_response() );
 		}
 		$this->remembered_body = $this->response['body'];
 	}
